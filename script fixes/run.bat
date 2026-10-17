@@ -2,7 +2,7 @@
 REM Double-click to run Jarvis from source.
 REM First run sets everything up automatically (a few minutes); after that it starts right away.
 setlocal
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 if not exist .venv\Scripts\python.exe (
     echo First run: setting up Jarvis. This takes a few minutes...

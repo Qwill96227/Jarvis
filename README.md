@@ -37,10 +37,10 @@ Windows SmartScreen may say "Windows protected your PC" because the app isn't co
 ## For the builder
 
 ### Run from source
-Double-click **`run.bat`**. The first run creates the `.venv` and installs everything (a few minutes); after that it launches straight away. The `.venv` isn't in git on purpose, because it's machine-specific and over GitHub's size limits.
+Double-click **`script fixes\run.bat`**. The first run creates the `.venv` and installs everything (a few minutes); after that it launches straight away. The `.venv` isn't in git on purpose, because it's machine-specific and over GitHub's size limits.
 
 ### Build the installer
-Install Python 3.12 (64-bit) and optionally [Inno Setup 6](https://jrsoftware.org/isdl.php), then double-click **`build.bat`**.
+Install Python 3.12 (64-bit) and optionally [Inno Setup 6](https://jrsoftware.org/isdl.php), then double-click **`script fixes\build.bat`**.
 - With Inno Setup → `Output\JarvisSetup.exe` (Start menu + desktop shortcut + optional start-with-Windows)
 - Without → `Jarvis-Windows.zip`
 

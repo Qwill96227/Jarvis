@@ -5,7 +5,7 @@ REM  Needs: Python 3.11 or 3.12 (64-bit) from python.org, "Add to PATH" checked.
 REM  Optional: Inno Setup 6 (jrsoftware.org) to also make JarvisSetup.exe
 REM ============================================================
 setlocal
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 echo [1/4] Creating virtual environment...
 if not exist .venv (
