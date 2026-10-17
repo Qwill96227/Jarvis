@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# PyInstaller / Inno Setup output
+build/
+dist/
+Output/
+*.spec
+Jarvis-Windows.zip
+
+# Local settings (never commit API keys)
+config.json
+*.log
