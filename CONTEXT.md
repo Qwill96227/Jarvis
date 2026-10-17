@@ -57,7 +57,7 @@ In `jarvis/tools.py`, add a JSON schema to `TOOL_SCHEMAS` and a method named `t_
 - ❌ **The first `.exe` build crashed silently on launch.** Because the code runs fine from source, the cause is a **PyInstaller packaging issue**, most likely a missing hidden import or DLL. The top suspects are the PortAudio DLL from `sounddevice`, plus `keyboard`, `pyttsx3`/`comtypes`, and `ctranslate2`.
 - 🔄 **Next step:** rebuild with `script fixes\build.bat`. The new `run_jarvis.py` makes a crashing exe show a popup with the traceback and write `%APPDATA%\Jarvis\crash.log`. Read that error, then fix `script fixes\build.bat` (add `--hidden-import` / `--collect-all` / `--add-binary` as needed).
 - ⏳ Not yet tested on real hardware: mic capture, Whisper transcription, Piper voice output, media keys, app launching, and the global hotkey.
-- ⏳ The API key isn't set up yet. Quincy is creating one at platform.claude.com.
+- ✅ API key is set up on Quincy's PC, saved through the in-app settings to `%APPDATA%\Jarvis\config.json` (never committed). The exe on this PC picks it up automatically; the roommate will enter their own key on first launch.
 
 ## Next steps (in order)
 
