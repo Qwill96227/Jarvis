@@ -33,6 +33,13 @@ pyinstaller --noconfirm --clean --windowed ^
   --hidden-import comtypes.client ^
   run_jarvis.py || goto :fail
 
+REM PyInstaller can bundle an old Visual C++ runtime (14.31) that makes the newer DLLs in
+REM numpy/onnxruntime/ctranslate2 crash on launch (0xC0000005 in MSVCP140.dll). Ship the
+REM current Windows copies instead.
+for %%D in (msvcp140.dll vcruntime140.dll vcruntime140_1.dll) do (
+    copy /y "%SystemRoot%\System32\%%D" "dist\Jarvis\_internal\%%D" >nul || goto :fail
+)
+
 echo [4/4] Packaging...
 set ISCC="%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
 if exist %ISCC% (
@@ -40,7 +47,8 @@ if exist %ISCC% (
     echo.
     echo Done! Send him:  Output\JarvisSetup.exe
 ) else (
-    powershell -NoProfile -Command "Compress-Archive -Force -Path dist\Jarvis\* -DestinationPath Jarvis-Windows.zip"
+    REM Retry: antivirus often holds freshly built files open for a few seconds
+    powershell -NoProfile -Command "for ($i = 1; $i -le 5; $i++) { try { Compress-Archive -Force -Path dist\Jarvis\* -DestinationPath Jarvis-Windows.zip -ErrorAction Stop; exit 0 } catch { Write-Host 'Zip attempt failed, retrying...'; Start-Sleep 5 } }; exit 1" || goto :fail
     echo.
     echo Done! Send him:  Jarvis-Windows.zip   ^(unzip, run Jarvis.exe^)
     echo Tip: install Inno Setup 6 and re-run to get a proper installer instead.

@@ -54,14 +54,14 @@ In `jarvis/tools.py`, add a JSON schema to `TOOL_SCHEMAS` and a method named `t_
 
 - ✅ The code works when run from source: `script fixes\run.bat` opens Jarvis on Quincy's Windows PC.
 - ✅ Logic is tested (with a mocked API): the tool loop, `pause_turn` merging, trimming, error rollback, timers, notes, and weather parsing. The GUI rendered correctly in a headless test.
-- ❌ **The first `.exe` build crashed silently on launch.** Because the code runs fine from source, the cause is a **PyInstaller packaging issue**, most likely a missing hidden import or DLL. The top suspects are the PortAudio DLL from `sounddevice`, plus `keyboard`, `pyttsx3`/`comtypes`, and `ctranslate2`.
-- 🔄 **Next step:** rebuild with `script fixes\build.bat`. The new `run_jarvis.py` makes a crashing exe show a popup with the traceback and write `%APPDATA%\Jarvis\crash.log`. Read that error, then fix `script fixes\build.bat` (add `--hidden-import` / `--collect-all` / `--add-binary` as needed).
+- ✅ **The `.exe` now launches** (2026-10-17). The earlier silent crash was a native access violation (0xC0000005) in a stale **`MSVCP140.dll` 14.31** that PyInstaller bundled; numpy/onnxruntime/ctranslate2 need 14.40+. `build.bat` now copies the current `msvcp140.dll`, `vcruntime140.dll` and `vcruntime140_1.dll` from System32 into `dist\Jarvis\_internal\` after PyInstaller. Native crashes skip Python's handler, so for the next one check Event Viewer → Windows Logs → Application (Event ID 1000) for the faulting module.
+- ✅ `build.bat` zip step retries (antivirus briefly locks fresh files) and fails loudly instead of printing "Done!".
 - ⏳ Not yet tested on real hardware: mic capture, Whisper transcription, Piper voice output, media keys, app launching, and the global hotkey.
 - ✅ API key is set up on Quincy's PC, saved through the in-app settings to `%APPDATA%\Jarvis\config.json` (never committed). The exe on this PC picks it up automatically; the roommate will enter their own key on first launch.
 
 ## Next steps (in order)
 
-1. Get the `.exe` launching: read the crash popup or `crash.log` and fix `script fixes\build.bat`.
+1. Rebuild once with the updated `script fixes\build.bat` to confirm the DLL fix and zip step work end to end.
 2. Do an end-to-end test on real hardware: typed "hi", then voice weather, a timer, open Spotify/YouTube, volume up, battery, and a web search question.
 3. Install Inno Setup 6 and build `Output\JarvisSetup.exe` for the roommate.
 4. **v0.2 ideas:** optional "Hey Jarvis" wake word (openWakeWord) as a settings toggle, a system tray icon, Spotify API ("play some Drake"), and Google Calendar/Gmail tools.
