@@ -37,12 +37,7 @@ Windows SmartScreen may say "Windows protected your PC" because the app isn't co
 ## For the builder
 
 ### Run from source
-```bat
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-python run_jarvis.py
-```
+Double-click **`run.bat`**. The first run creates the `.venv` and installs everything (a few minutes); after that it launches straight away. The `.venv` isn't in git on purpose, because it's machine-specific and over GitHub's size limits.
 
 ### Build the installer
 Install Python 3.12 (64-bit) and optionally [Inno Setup 6](https://jrsoftware.org/isdl.php), then double-click **`build.bat`**.

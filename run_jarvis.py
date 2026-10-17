@@ -30,4 +30,5 @@ if __name__ == "__main__":
     except Exception:
         tb = traceback.format_exc()
         (LOG_DIR / "crash.log").write_text(tb, encoding="utf-8")
+        print(tb, file=sys.stderr)
         _show_crash(f"{tb[-1500:]}\n\nFull log saved to:\n{LOG_DIR / 'crash.log'}")
