@@ -13,6 +13,18 @@ CONFIG_PATH = APP_DIR / "config.json"
 NOTES_PATH = APP_DIR / "notes.json"
 VOICES_DIR = APP_DIR / "voices"
 
+# Claude models offered in settings: id -> (menu label, note shown under the menu)
+MODELS = {
+    "claude-haiku-5-5": ("Haiku 5.5 (fastest, cheapest)",
+                         "Quick everyday answers. Well under a cent per question."),
+    "claude-sonnet-5-5": ("Sonnet 5.5 (smarter)",
+                          "Better at explaining and planning. About 20x Haiku's cost, a bit slower."),
+    "claude-opus-5-5": ("Opus 5.5 (smartest everyday)",
+                        "Best for hard questions. About 40x Haiku's cost, slower to reply."),
+    "claude-fable-5-1": ("Fable 5.1 (most capable)",
+                         "Heads up: burns credits fastest (about 100x Haiku) and is the slowest to reply."),
+}
+
 DEFAULTS = {
     "api_key": "",
     "model": "claude-haiku-5-5",

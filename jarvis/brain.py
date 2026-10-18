@@ -48,25 +48,46 @@ class Brain:
             ):
                 self.history.pop(0)
 
+    def _request_args(self) -> dict:
+        model = self.cfg.get("model", "claude-haiku-5-5")
+        args = dict(
+            model=model,
+            max_tokens=4096,  # room for thinking; spoken replies are short anyway
+            system=system_prompt(self.cfg),
+            tools=self._tool_list(),
+            messages=self.history,
+        )
+        if model != "claude-haiku-5-5":
+            # Bigger models always think first; keep it light so spoken replies stay quick
+            args["output_config"] = {"effort": "low"}
+            # If a safety check declines a request, the API retries it on another model
+            args["betas"] = ["server-side-fallback-2026-07-01"]
+            args["fallbacks"] = "default"
+        return args
+
     def ask(self, text: str, on_tool=None) -> str:
-        """Send one user message, run any tools Claude asks for, return the final reply text.
+        """Send one user message, run any tools Claude asks for, return the full reply text.
         on_tool(name) is called before each local tool runs (for status display)."""
         self.history.append({"role": "user", "content": text})
+        said = []
         try:
             for _ in range(8):  # safety cap on tool round-trips
-                resp = self.client.messages.create(
-                    model=self.cfg.get("model", "claude-haiku-5-5"),
-                    max_tokens=1024,
-                    system=system_prompt(self.cfg),
-                    tools=self._tool_list(),
-                    messages=self.history,
-                )
+                with self.client.beta.messages.stream(**self._request_args()) as stream:
+                    resp = stream.get_final_message()
+
+                text_now = " ".join(b.text for b in resp.content if b.type == "text").strip()
+                if text_now:
+                    said.append(text_now)
                 # Send content back exactly as received (web search results must round-trip intact).
                 # After a pause_turn the reply continues the same assistant message, so merge it.
                 if self.history[-1]["role"] == "assistant":
                     self.history[-1]["content"] = list(self.history[-1]["content"]) + list(resp.content)
                 else:
                     self.history.append({"role": "assistant", "content": resp.content})
+
+                if resp.stop_reason == "refusal":
+                    self._trim()
+                    return " ".join(said) or "I'm afraid I can't help with that one."
 
                 if resp.stop_reason == "pause_turn":
                     continue  # server-side search still running; just resend
@@ -85,7 +106,7 @@ class Brain:
                     self.history.append({"role": "user", "content": results})
                     continue
 
-                reply = " ".join(b.text for b in resp.content if b.type == "text").strip()
+                reply = " ".join(said)
                 self._trim()
                 return reply or "Done."
             self._trim()

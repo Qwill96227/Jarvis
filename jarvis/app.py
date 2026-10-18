@@ -85,7 +85,7 @@ class SettingsDialog(ctk.CTkToplevel):
     def __init__(self, master, cfg, on_save, first_run=False):
         super().__init__(master)
         self.title("Jarvis settings")
-        self.geometry("440x560")
+        self.geometry("440x660")
         self.configure(fg_color=PANEL)
         self.resizable(False, False)
         self.transient(master)
@@ -105,6 +105,18 @@ class SettingsDialog(ctk.CTkToplevel):
                             text_color=MUTED, cursor="hand2")
         link.pack(padx=24, anchor="w")
         link.bind("<Button-1>", lambda e: webbrowser.open("https://platform.claude.com/docs/en/get-api-key"))
+
+        ctk.CTkLabel(self, text="Brain (Claude model)", text_color=TEXT).pack(**pad)
+        self._model_ids = {label: mid for mid, (label, _) in config.MODELS.items()}
+        current = config.MODELS.get(cfg.get("model"), config.MODELS["claude-haiku-5-5"])
+        self.model = ctk.CTkOptionMenu(self, values=list(self._model_ids), width=390,
+                                       fg_color=CYAN_DIM, button_color=CYAN_DIM,
+                                       button_hover_color=CYAN, command=self._show_model_note)
+        self.model.set(current[0])
+        self.model.pack(padx=24, anchor="w")
+        self.model_note = ctk.CTkLabel(self, text="", text_color=MUTED, wraplength=390, justify="left")
+        self.model_note.pack(padx=24, anchor="w")
+        self._show_model_note(current[0])
 
         ctk.CTkLabel(self, text="What should Jarvis call you?", text_color=TEXT).pack(**pad)
         self.name = ctk.CTkEntry(self, width=390, placeholder_text="e.g. Marcus, or 'sir'")
@@ -141,9 +153,15 @@ class SettingsDialog(ctk.CTkToplevel):
         ctk.CTkButton(self, text="Save", fg_color=CYAN, text_color=BG, hover_color="#7fe6ff",
                       command=self._save, width=390).pack(padx=24, pady=24, anchor="w")
 
+    def _show_model_note(self, label):
+        mid = self._model_ids[label]
+        self.model_note.configure(text=config.MODELS[mid][1],
+                                  text_color="#ffb347" if mid == "claude-fable-5-1" else MUTED)
+
     def _save(self):
         self.cfg.update({
             "api_key": self.key.get().strip(),
+            "model": self._model_ids[self.model.get()],
             "user_name": self.name.get().strip(),
             "home_city": self.city.get().strip(),
             "whisper_model": self.whisper.get(),
@@ -329,7 +347,7 @@ class JarvisApp(ctk.CTk):
         self.ui(self._append, "jarvis", reply)
         if speak and self.cfg.get("voice_enabled", True):
             self.ui(self._set_state, "speaking")
-            self.speaker.say(reply)
+            self.speaker.say(reply)  # whole reply as one clip, no gaps between sentences
         self.busy = False
         self.ui(self._set_state, "idle")
 
