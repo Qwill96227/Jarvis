@@ -3,6 +3,7 @@ Everything here runs locally; only the transcribed text goes to Claude."""
 import io
 import re
 import threading
+import time
 import wave
 
 import numpy as np
@@ -138,20 +139,25 @@ class Speaker:
             self._say_sapi(text)
 
     def _say_piper(self, text):
-        # Speak sentence by sentence so the first words come out quickly
-        # and Stop can interrupt between sentences.
-        for sentence in re.split(r"(?<=[.!?])\s+", text):
-            if self._stop.is_set() or not sentence.strip():
-                break
-            buf = io.BytesIO()
-            with wave.open(buf, "wb") as wf:
-                self.piper.synthesize_wav(sentence, wf)
-            buf.seek(0)
-            with wave.open(buf, "rb") as wf:
-                rate = wf.getframerate()
-                audio = np.frombuffer(wf.readframes(wf.getnframes()), dtype=np.int16)
-            sd.play(audio, rate)
-            sd.wait()
+        # Synthesize the whole reply into one buffer and play it once: a separate
+        # play() per sentence left audible gaps and crackles between them.
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as wf:
+            self.piper.synthesize_wav(text, wf)
+        buf.seek(0)
+        with wave.open(buf, "rb") as wf:
+            rate = wf.getframerate()
+            audio = np.frombuffer(wf.readframes(wf.getnframes()), dtype=np.int16)
+        # ~300 ms of trailing silence so the output device doesn't clip the last word
+        audio = np.concatenate([audio, np.zeros(int(rate * 0.3), dtype=np.int16)])
+        if self._stop.is_set():
+            return
+        sd.play(audio, rate, blocking=False, latency="high")
+        while sd.get_stream().active:
+            if self._stop.is_set():  # Stop button
+                sd.stop()
+                return
+            time.sleep(0.05)
 
     def _say_sapi(self, text):
         import pyttsx3
