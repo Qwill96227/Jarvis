@@ -1,4 +1,4 @@
-"""Local tools Jarvis can call. Each tool = a JSON schema + a Python function.
+"""Local tools Drexya can call. Each tool = a JSON schema + a Python function.
 
 To add a tool: write a function, add a schema to TOOL_SCHEMAS, and register it in
 Tools.dispatch. Claude decides when to call it based on the description.
@@ -45,7 +45,7 @@ TOOL_SCHEMAS = [
     },
     {
         "name": "set_timer",
-        "description": "Start a countdown timer. Jarvis announces it out loud when it finishes.",
+        "description": "Start a countdown timer. Drexya announces it out loud when it finishes.",
         "input_schema": {
             "type": "object",
             "properties": {

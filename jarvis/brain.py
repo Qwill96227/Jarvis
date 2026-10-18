@@ -9,7 +9,7 @@ MAX_HISTORY_MESSAGES = 30
 def system_prompt(cfg: dict) -> str:
     name = cfg.get("user_name") or "sir"
     city = cfg.get("home_city") or "unknown"
-    return f"""You are J.A.R.V.I.S., a personal AI assistant running on {name}'s Windows laptop.
+    return f"""You are Drexya, a personal AI assistant running on {name}'s Windows laptop.
 
 Personality: calm, quick, a little dry British wit, unfailingly helpful. Address the user as "{name}" occasionally, not every line.
 

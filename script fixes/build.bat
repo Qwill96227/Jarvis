@@ -1,8 +1,8 @@
 @echo off
 REM ============================================================
-REM  Builds Jarvis into a Windows app.
+REM  Builds Drexya into a Windows app.
 REM  Needs: Python 3.11 or 3.12 (64-bit) from python.org, "Add to PATH" checked.
-REM  Optional: Inno Setup 6 (jrsoftware.org) to also make JarvisSetup.exe
+REM  Optional: Inno Setup 6 (jrsoftware.org) to also make DrexyaSetup.exe
 REM ============================================================
 setlocal
 cd /d "%~dp0.."
@@ -17,9 +17,9 @@ echo [2/4] Installing dependencies (first time takes a few minutes)...
 python -m pip install --upgrade pip >nul
 pip install -r requirements.txt pyinstaller || goto :fail
 
-echo [3/4] Building Jarvis.exe...
+echo [3/4] Building Drexya.exe...
 pyinstaller --noconfirm --clean --windowed ^
-  --name Jarvis ^
+  --name Drexya ^
   --icon assets\jarvis.ico ^
   --add-data "assets;assets" ^
   --collect-all faster_whisper ^
@@ -37,7 +37,7 @@ REM PyInstaller can bundle an old Visual C++ runtime (14.31) that makes the newe
 REM numpy/onnxruntime/ctranslate2 crash on launch (0xC0000005 in MSVCP140.dll). Ship the
 REM current Windows copies instead.
 for %%D in (msvcp140.dll vcruntime140.dll vcruntime140_1.dll) do (
-    copy /y "%SystemRoot%\System32\%%D" "dist\Jarvis\_internal\%%D" >nul || goto :fail
+    copy /y "%SystemRoot%\System32\%%D" "dist\Drexya\_internal\%%D" >nul || goto :fail
 )
 
 echo [4/4] Packaging...
@@ -45,12 +45,12 @@ set ISCC="%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
 if exist %ISCC% (
     %ISCC% installer.iss || goto :fail
     echo.
-    echo Done! Send him:  Output\JarvisSetup.exe
+    echo Done! Send him:  Output\DrexyaSetup.exe
 ) else (
     REM Retry: antivirus often holds freshly built files open for a few seconds
-    powershell -NoProfile -Command "for ($i = 1; $i -le 5; $i++) { try { Compress-Archive -Force -Path dist\Jarvis\* -DestinationPath Jarvis-Windows.zip -ErrorAction Stop; exit 0 } catch { Write-Host 'Zip attempt failed, retrying...'; Start-Sleep 5 } }; exit 1" || goto :fail
+    powershell -NoProfile -Command "for ($i = 1; $i -le 5; $i++) { try { Compress-Archive -Force -Path dist\Drexya\* -DestinationPath Drexya-Windows.zip -ErrorAction Stop; exit 0 } catch { Write-Host 'Zip attempt failed, retrying...'; Start-Sleep 5 } }; exit 1" || goto :fail
     echo.
-    echo Done! Send him:  Jarvis-Windows.zip   ^(unzip, run Jarvis.exe^)
+    echo Done! Send him:  Drexya-Windows.zip   ^(unzip, run Drexya.exe^)
     echo Tip: install Inno Setup 6 and re-run to get a proper installer instead.
 )
 goto :eof

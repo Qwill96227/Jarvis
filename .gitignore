@@ -10,6 +10,7 @@ dist/
 Output/
 *.spec
 Jarvis-Windows.zip
+Drexya-Windows.zip
 
 # Local settings (never commit API keys)
 config.json

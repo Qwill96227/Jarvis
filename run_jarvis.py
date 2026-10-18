@@ -18,7 +18,7 @@ if sys.stdout is None or sys.stderr is None:
 def _show_crash(msg):
     try:
         import ctypes
-        ctypes.windll.user32.MessageBoxW(0, msg, "Jarvis couldn't start", 0x10)
+        ctypes.windll.user32.MessageBoxW(0, msg, "Drexya couldn't start", 0x10)
     except Exception:
         print(msg)
 

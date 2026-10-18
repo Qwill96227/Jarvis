@@ -1,4 +1,4 @@
-"""J.A.R.V.I.S. desktop window."""
+"""Drexya desktop window."""
 import math
 import os
 import sys
@@ -84,7 +84,7 @@ class Reactor(ctk.CTkCanvas):
 class SettingsDialog(ctk.CTkToplevel):
     def __init__(self, master, cfg, on_save, first_run=False):
         super().__init__(master)
-        self.title("Jarvis settings")
+        self.title("Drexya settings")
         self.geometry("440x660")
         self.configure(fg_color=PANEL)
         self.resizable(False, False)
@@ -118,7 +118,7 @@ class SettingsDialog(ctk.CTkToplevel):
         self.model_note.pack(padx=24, anchor="w")
         self._show_model_note(current[0])
 
-        ctk.CTkLabel(self, text="What should Jarvis call you?", text_color=TEXT).pack(**pad)
+        ctk.CTkLabel(self, text="What should Drexya call you?", text_color=TEXT).pack(**pad)
         self.name = ctk.CTkEntry(self, width=390, placeholder_text="e.g. Marcus, or 'sir'")
         self.name.insert(0, cfg.get("user_name", ""))
         self.name.pack(padx=24, anchor="w")
@@ -178,7 +178,7 @@ class JarvisApp(ctk.CTk):
         super().__init__()
         ctk.set_appearance_mode("dark")
         self.cfg = config.load()
-        self.title("J.A.R.V.I.S.")
+        self.title("Drexya")
         self.geometry("460x720")
         self.minsize(400, 600)
         self.configure(fg_color=BG)
@@ -207,7 +207,7 @@ class JarvisApp(ctk.CTk):
     def _build_ui(self):
         top = ctk.CTkFrame(self, fg_color=BG)
         top.pack(fill="x", padx=18, pady=(16, 0))
-        ctk.CTkLabel(top, text="J.A.R.V.I.S.", text_color=CYAN,
+        ctk.CTkLabel(top, text="DREXYA", text_color=CYAN,
                      font=ctk.CTkFont(family="Consolas", size=24, weight="bold")).pack(side="left")
         ctk.CTkButton(top, text="⚙", width=36, fg_color=PANEL, hover_color=CYAN_DIM,
                       command=self.open_settings).pack(side="right")
@@ -250,7 +250,7 @@ class JarvisApp(ctk.CTk):
         if who == "you":
             self.log.insert("end", f"You: {text}\n\n", "you")
         else:
-            self.log.insert("end", "Jarvis: ", "label_j")
+            self.log.insert("end", "Drexya: ", "label_j")
             self.log.insert("end", f"{text}\n\n", "jarvis")
         self.log.configure(state="disabled")
         self.log.see("end")

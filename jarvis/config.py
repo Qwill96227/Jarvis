@@ -1,4 +1,6 @@
-"""Settings stored in %APPDATA%\\Jarvis\\config.json (or ~/.jarvis on non-Windows)."""
+"""Settings stored in %APPDATA%\\Jarvis\\config.json (or ~/.jarvis on non-Windows).
+The folder keeps its original name from before the rename to Drexya, so existing
+installs keep their API key, settings and downloaded voice."""
 import json
 import os
 from pathlib import Path
@@ -31,7 +33,7 @@ DEFAULTS = {
     "user_name": "",
     "home_city": "",
     "voice_enabled": True,
-    "piper_voice": "en_GB-alan-medium",   # British male, very Jarvis
+    "piper_voice": "en_GB-alan-medium",   # British male
     "whisper_model": "base.en",           # tiny.en = faster, small.en = more accurate
     "hotkey": "ctrl+alt+j",
     "web_search": True,

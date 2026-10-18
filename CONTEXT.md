@@ -4,6 +4,8 @@ Read this first. It explains what this project is, how it's built, where things 
 
 ## What this is
 
+> **Renamed to Drexya (2026-10-17).** Everything user-facing says Drexya: window, persona, transcript, `Drexya.exe`, `DrexyaSetup.exe`, `Drexya-Windows.zip`, shortcuts. Deliberately kept: the `jarvis/` package, `run_jarvis.py`, `assets/jarvis.ico`, the repo/folder name, and the data folder `%APPDATA%\Jarvis` (renaming it would lose existing API keys, settings and the downloaded voice).
+
 A J.A.R.V.I.S.-style voice assistant packaged as a **downloadable Windows desktop app**, built by Quincy as a gift for his roommate.
 
 - **Target machine:** the roommate's regular Windows laptop. No GPU, so no local LLMs.

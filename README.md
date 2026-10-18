@@ -1,6 +1,6 @@
-# J.A.R.V.I.S. — a voice assistant for Windows
+# Drexya — a voice assistant for Windows
 
-Click the glowing core (or press **Ctrl+Alt+J** from anywhere), talk, click again. Jarvis transcribes you locally, thinks with Claude, and talks back in a British voice.
+Click the glowing core (or press **Ctrl+Alt+J** from anywhere), talk, click again. Drexya transcribes you locally, thinks with Claude, and talks back in a British voice.
 
 ## What it can do (v0.1)
 
@@ -41,14 +41,14 @@ Double-click **`script fixes\run.bat`**. The first run creates the `.venv` and i
 
 ### Build the installer
 Install Python 3.12 (64-bit) and optionally [Inno Setup 6](https://jrsoftware.org/isdl.php), then double-click **`script fixes\build.bat`**.
-- With Inno Setup → `Output\JarvisSetup.exe` (Start menu + desktop shortcut + optional start-with-Windows)
-- Without → `Jarvis-Windows.zip`
+- With Inno Setup → `Output\DrexyaSetup.exe` (Start menu + desktop shortcut + optional start-with-Windows)
+- Without → `Drexya-Windows.zip`
 
 ### Project layout
 ```
 jarvis/
   app.py      window, reactor animation, settings, hotkey
-  brain.py    Claude tool-use loop + Jarvis personality (system prompt)
+  brain.py    Claude tool-use loop + Drexya's personality (system prompt)
   tools.py    weather, timers, notes, apps, media, battery
   voice.py    mic recording, Whisper (speech-to-text), Piper (text-to-speech)
   config.py   settings in %APPDATA%\Jarvis
@@ -58,7 +58,7 @@ jarvis/
 In `tools.py`: add a schema to `TOOL_SCHEMAS` and a method named `t_<tool_name>`. That's it. Claude reads the description to decide when to use it.
 
 ### Ideas for v0.2
-- Wake word ("Hey Jarvis") with openWakeWord, behind a settings toggle
+- Wake word ("Hey Drexya") with openWakeWord, behind a settings toggle
 - Google Calendar / Gmail tools
 - Spotify API for "play some Drake"
 - Tray icon so it lives next to the clock
