@@ -56,6 +56,10 @@ DEFAULTS = {
     "max_tool_steps": 12,                 # tool round-trips allowed for one request
     "profiles_enabled": True,             # several people with their own notes/memories/reminders
     "active_profile": "default",          # "default" = the main settings' name and city
+    "pin_hash": "",                       # set in settings; salted hash, never the PIN itself
+    "pin_tools": ["send_email", "clear_notes", "move_file"],  # need the PIN when one is set
+    "audit_enabled": True,                # log every tool call to drexya.db
+    "audit_days": 90,                     # how long to keep the activity log
 }
 
 

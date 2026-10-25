@@ -40,7 +40,7 @@ class ProfileTests(ToolsTestCase):
         self.assertEqual(self.call("read_notes"), "No notes saved.")
         self.assertEqual(self.tools.memory_summary(), [])
         self.assertEqual(self.call("list_reminders"), "No upcoming reminders.")
-        self.tools.confirm = lambda q, d: True
+        self.tools.confirm = lambda q, d, pin=False: True
         self.call("clear_notes")  # Marcus clearing his notes...
         self.call("switch_profile", name="Quincy")
         self.assertIn("Quincy's note", self.call("read_notes"))  # ...leaves Quincy's alone

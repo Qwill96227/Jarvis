@@ -74,18 +74,18 @@ class EmailToolTests(ToolsTestCase):
 
     def test_send_waits_for_the_users_yes(self):
         asked = []
-        self.tools.confirm = lambda q, d: asked.append((q, d)) or False
+        self.tools.confirm = lambda q, d, pin=False: asked.append((q, d)) or False
         self.assertIn("did not confirm", self.call("send_email", to="ana@example.com", subject="Dinner", body="Yes!"))
         self.assertEqual(self.fake.sent, [])
         self.assertEqual(asked[0][0], "Send this email to ana@example.com?")
         self.assertIn("Subject: Dinner", asked[0][1])
-        self.tools.confirm = lambda q, d: True
+        self.tools.confirm = lambda q, d, pin=False: True
         self.assertEqual(self.call("send_email", to="ana@example.com", subject="Dinner", body="Yes!"),
                          "Sent to ana@example.com.")
         self.assertEqual(self.fake.sent, [("ana@example.com", "Dinner", "Yes!")])
 
     def test_send_rejects_names(self):
-        self.tools.confirm = lambda q, d: True
+        self.tools.confirm = lambda q, d, pin=False: True
         self.assertIn("isn't an email address", self.call("send_email", to="Ana", subject="x", body="y"))
         self.assertEqual(self.fake.sent, [])
 

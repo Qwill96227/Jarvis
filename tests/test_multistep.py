@@ -65,10 +65,10 @@ class GateTests(ToolsTestCase):
     def test_irreversible_tool_needs_a_yes(self):
         self.call("save_note", text="buy milk")
         self.assertIn("did not confirm", self.call("clear_notes"))  # no way to ask = no
-        self.tools.confirm = lambda q, d: False
+        self.tools.confirm = lambda q, d, pin=False: False
         self.assertIn("did not confirm", self.call("clear_notes"))
         self.assertNotEqual(self.call("read_notes"), "No notes saved.")  # still there
-        self.tools.confirm = lambda q, d: True
+        self.tools.confirm = lambda q, d, pin=False: True
         self.assertEqual(self.call("clear_notes"), "All notes deleted.")
 
     def test_confirm_list_is_configurable(self):
@@ -111,7 +111,7 @@ def confirm_app(voice_turn=False, click=None, voice_reply=None):
     app._set_state = mock.Mock()
     app._close_confirm = mock.Mock()
     app._say = mock.Mock()
-    app._show_confirm = lambda q, d, answer: click is not None and answer(click)
+    app._show_confirm = lambda q, d, answer, pin=False: click is not None and answer(click)
     app._listen_yes_no = lambda answer, heard: voice_reply is not None and answer(voice_reply)
     return app
 
@@ -157,7 +157,7 @@ class MultiStepTests(ToolsTestCase):
         self.assertTrue(result["is_error"])
 
     def test_declined_confirmation_reaches_claude_as_error(self):
-        self.tools.confirm = lambda q, d: False
+        self.tools.confirm = lambda q, d, pin=False: False
         b = self.brain(reply(tool("clear_notes", "t1"), stop="tool_use"), reply(text("OK, I left them.")))
         self.assertEqual(b.ask("clear my notes"), "OK, I left them.")
         result = b.client.requests[1][-1]["content"][0]

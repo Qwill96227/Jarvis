@@ -9,77 +9,88 @@ Read this first. It explains what this project is, how it's built, where things 
 A J.A.R.V.I.S.-style voice assistant packaged as a **downloadable Windows desktop app**, built by Quincy as a gift for his roommate.
 
 - **Target machine:** the roommate's regular Windows laptop. No GPU, so no local LLMs.
-- **Distribution:** a `.exe` built with PyInstaller. The goal is either `JarvisSetup.exe` (an Inno Setup installer) or `Jarvis-Windows.zip`.
+- **Distribution:** a `.exe` built with PyInstaller: `Output\DrexyaSetup.exe` (Inno Setup) or `Drexya-Windows.zip`.
 - **Repo:** `github.com/Qwill96227/Jarvis` (private, branch `main`)
 - **Local working copy:** `C:\Users\Quincy\AI Projects\Jarvis`. The old copy at `E:\Projects\jarvis` is obsolete and can be deleted.
 
 ## How it works
 
 ```
-🎤 mic → Whisper (local, CPU) → text → Claude API (Haiku 5.5 + tools) → reply → Piper TTS (local) → 🔊
+🎤 mic (push-to-talk or wake word) → Whisper (local) → text → Claude API + tools → reply → Piper TTS (local) → 🔊
 ```
 
-- **Brain:** Claude API, model `claude-haiku-5-5`. Each user supplies their own API key, entered in the in-app settings and stored in `%APPDATA%\Jarvis\config.json`. The key is **never** bundled in the exe or committed.
-- **Speech-to-text:** `faster-whisper`, `base.en` by default (`tiny.en` and `small.en` are selectable). It runs locally on the CPU with int8, and the model downloads on first use (about 140 MB).
-- **Text-to-speech:** `piper-tts` with the voice `en_GB-alan-medium`. The voice downloads to `%APPDATA%\Jarvis\voices` on first launch, and the app falls back to the Windows SAPI voice via `pyttsx3` if Piper fails.
-- **Trigger:** push-to-talk. The user clicks the reactor core or presses the global hotkey `Ctrl+Alt+J` once to start and again to stop. There's no wake word yet, because always listening drains a laptop battery.
+- **Brain:** Claude API. Model picker in settings (`config.MODELS`, Haiku 5.5 default). Each user supplies their own API key in settings, stored in `%APPDATA%\Jarvis\config.json`, **never** bundled or committed.
+- **Speech-to-text:** `faster-whisper` (`base.en` default) on CPU int8.
+- **Text-to-speech:** `piper-tts` voice `en_GB-alan-medium`, whole reply played as one clip; Windows SAPI fallback.
+- **Trigger:** click the core or `Ctrl+Alt+J` (push-to-talk), or the optional wake word (off by default; "Hey Jarvis"), which records hands-free until silence. Any of them interrupts speech.
 - **Typed messages** get text-only replies. **Voice messages** get spoken replies.
 
 ## Code map
 
-The batch scripts live in `script fixes\` and `cd` to the repo root (`%~dp0..`) before running, so the paths inside them are relative to the root.
-
+The batch scripts live in `script fixes\` and `cd` to the repo root (`%~dp0..`) before running.
 
 | File | Purpose |
 |---|---|
-| `run_jarvis.py` | Entry point. Redirects stdout/stderr to a log when windowed. On crash it shows a MessageBox, prints the traceback, and writes `%APPDATA%\Jarvis\crash.log` |
-| `jarvis/app.py` | customtkinter window: the animated "arc reactor" button, transcript, settings dialog, hotkey, threading |
-| `jarvis/brain.py` | Claude tool-use loop, system prompt (Jarvis persona, short spoken-style replies), history trimming, error handling |
-| `jarvis/tools.py` | Local tools: `get_datetime`, `get_weather` (Open-Meteo, no key), `set_timer`/`list_timers`, `save_note`/`read_notes`/`clear_notes`, `open_website`, `open_app` (Windows allowlist), `media_control` (media keys/volume via `keyboard`), `system_status` (psutil) |
-| `jarvis/voice.py` | `Recorder` (sounddevice, 16 kHz mono), `Transcriber` (faster-whisper, loaded in a background thread), `Speaker` (Piper sentence by sentence; Stop button interrupts) |
-| `jarvis/config.py` | Settings and paths in `%APPDATA%\Jarvis` |
-| `script fixes\run.bat` | Double-click to run from source. Creates `.venv` on first run, reinstalls when `requirements.txt` changes, and keeps the console open on error |
-| `script fixes\build.bat` | Builds `dist\Jarvis\Jarvis.exe` with PyInstaller (`--windowed --collect-all ...`), then Inno Setup if installed, otherwise a zip |
-| `installer.iss` | Inno Setup script: per-user install, Start menu and desktop shortcuts, optional start-with-Windows |
+| `run_jarvis.py` | Entry point. Redirects stdout/stderr to a log when windowed; on crash shows a MessageBox and writes `crash.log` |
+| `jarvis/app.py` | customtkinter window, settings (scrollable), confirmation dialog (+PIN), activity log viewer, wake word/interruption, threading |
+| `jarvis/brain.py` | Claude tool-use loop: multi-step (max_tool_steps), is_error results, partial-progress replies on failure, resets history when the profile changes |
+| `jarvis/tools.py` | Core tools + `Tools` class, which inherits each feature's mixin. `schemas()` picks tool groups from settings; `run()` is the gate: confirmation/PIN, retries, audit log |
+| `jarvis/storage.py` | SQLite `%APPDATA%\Jarvis\drexya.db`: memories, reminders, notes, profiles, audit |
+| `jarvis/memory.py` | remember / recall / forget; recent memories go in the system prompt |
+| `jarvis/reminders.py` | Date/time reminders + background scheduler (survive restarts; missed ones announced) |
+| `jarvis/calendar_tools.py`, `email_tools.py` | Calendar and Gmail tools, provider-agnostic |
+| `jarvis/providers/` | `base.py` interfaces, `google.py` (OAuth, Google Calendar, Gmail). Add Outlook here |
+| `jarvis/system_tools.py` | Close apps, windows, screenshots, file search/open/move (inside user profile only), brightness, Wi-Fi |
+| `jarvis/location.py` | Windows location → IP → home city, cached 10 min; weather uses it when no place is named |
+| `jarvis/home_assistant.py` | Lights, switches, fans, thermostats via HA REST (locks/garage/alarms excluded on purpose) |
+| `jarvis/wakeword.py` | openWakeWord listener + `EndOfSpeech` silence detection |
+| `jarvis/safety.py` | Which tools need confirmation/PIN, yes/no parsing, PIN hashing (PBKDF2), audit log |
+| `jarvis/profiles.py` | People sharing the laptop: list/switch/create; per-profile notes, memories, reminders |
+| `jarvis/voice.py` | `Recorder` (optional hands-free stop), `Transcriber`, `Speaker` |
+| `jarvis/config.py` | Settings defaults and paths in `%APPDATA%\Jarvis` |
+| `tests/` | unittest suite (135 tests): `.\.venv\Scripts\python -m unittest discover -s tests -t .` |
+| `script fixes\run.bat` / `build.bat` | Run from source / build `dist\Drexya\Drexya.exe` + installer or zip |
 
 ### Adding a tool
-In `jarvis/tools.py`, add a JSON schema to `TOOL_SCHEMAS` and a method named `t_<tool_name>` on `Tools`. `dispatch()` finds it automatically. Claude decides when to call it from the description.
+Add a schema to `TOOL_SCHEMAS` (or a feature module's `SCHEMAS`) and a `t_<tool_name>` method on `Tools` (or that module's mixin). Register a new module's group in `Tools.schemas()`. If it's irreversible, add it to `safety.DEFAULT_CONFIRM_TOOLS`; if sensitive, `DEFAULT_PIN_TOOLS`; if it changes something, add a phrase to `brain.DID`.
 
 ### Important implementation details
-- Server-side **web search** uses `{"type": "web_search_20250305", "name": "web_search", "max_uses": 3}`, which can be toggled in settings and costs about 1¢ per search.
-- Assistant content is appended to history **exactly as returned**, because web search `encrypted_content` must round-trip. On `pause_turn`, the continuation is **merged into the previous assistant message** rather than appended as a second consecutive assistant turn.
-- History trimming only cuts at a plain-text user message, so `tool_use`/`tool_result` pairs never get split.
-- On API errors, `_rollback()` restores history to its state before the failed user message.
-- All Claude, Whisper, and Piper work runs in background threads. UI updates go through `self.ui(fn, ...)`, which calls `after(0, ...)`.
+- Web search tool `web_search_20250305`, toggled in settings.
+- Assistant content is appended to history **exactly as returned**; `pause_turn` continuations merge into the previous assistant message.
+- History trimming only cuts at a plain-text user message. On an API error with no tools run, `_rollback()`; if tools already ran, history is kept so they aren't repeated.
+- The confirmation gate is in `Tools.run`, not the prompt: only an explicit `True` from `confirm()` proceeds (`is not True`, since `1 == True`).
+- Tool results from email/web are untrusted; the system prompt says never to follow instructions in them (verified against a planted forwarding instruction).
+- All Claude, Whisper, Piper and wake word work runs off the UI thread; UI updates go through `self.ui(fn, ...)`.
 
-## Current status (2026-10-17)
+## Current status (2026-10-25)
 
-- ✅ The code works when run from source: `script fixes\run.bat` opens Jarvis on Quincy's Windows PC.
-- ✅ Logic is tested (with a mocked API): the tool loop, `pause_turn` merging, trimming, error rollback, timers, notes, and weather parsing. The GUI rendered correctly in a headless test.
-- ✅ **The `.exe` now launches** (2026-10-17). The earlier silent crash was a native access violation (0xC0000005) in a stale **`MSVCP140.dll` 14.31** that PyInstaller bundled; numpy/onnxruntime/ctranslate2 need 14.40+. `build.bat` now copies the current `msvcp140.dll`, `vcruntime140.dll` and `vcruntime140_1.dll` from System32 into `dist\Jarvis\_internal\` after PyInstaller. Native crashes skip Python's handler, so for the next one check Event Viewer → Windows Logs → Application (Event ID 1000) for the faulting module.
-- ✅ **Model picker** in settings (`config.MODELS`): Haiku 5.5 (default), Sonnet 5.5, Opus 5.5, Fable 5.1 (warns it burns credits fastest). Non-Haiku models run at `effort: low` with server-side refusal fallback (`fallbacks: "default"`); a refusal is spoken politely. Measured weather-question latency: Haiku 2.9s, Sonnet 3.3s, Opus 4.6s, Fable 4.7s.
-- ✅ **Piper playback** synthesizes the whole reply into one clip (+300 ms trailing silence, `latency="high"`) instead of one `sd.play()` per sentence, which caused gaps/crackle/clipped endings. Stop still interrupts. (Sentence-level streaming to TTS was tried and dropped: it only saved ~0.2s.)
-- 💡 Voice quality idea, not applied: Microsoft neural voice `en-GB-RyanNeural` via `edge-tts` (online, unofficial, ~1.2s extra latency), with Piper as offline fallback. The `alan-medium` model itself is the main source of the rough sound.
-- ✅ `build.bat` zip step retries (antivirus briefly locks fresh files) and fails loudly instead of printing "Done!".
-- ⏳ Not yet tested on real hardware: mic capture, Whisper transcription, Piper voice output, media keys, app launching, and the global hotkey.
-- ✅ API key is set up on Quincy's PC, saved through the in-app settings to `%APPDATA%\Jarvis\config.json` (never committed). The exe on this PC picks it up automatically; the roommate will enter their own key on first launch.
+- ✅ Runs from source and as an exe (DLL fix: `build.bat` copies current `msvcp140`/`vcruntime140*` from System32).
+- ✅ Features added 2026-10-25, each committed with tests and live-tested with Claude: persistent memory, reminders, Google Calendar, Gmail, system control, location, Home Assistant, wake word + interruption, multi-step with enforced confirmations, profiles, PIN + audit log.
+- ⚠️ **Defender quarantined `Drexya.exe`** (2026-10-18, `Trojan:Win32/Bearfoos.B!ml`, a common PyInstaller false positive). Desktop shortcut now runs from source via `.venv\Scripts\pythonw.exe run_jarvis.py`. Fix: submit `Drexya-Windows.zip` to microsoft.com/wdsi/filesubmission as a false positive; long term, code signing.
+- ⚠️ **Needs Quincy's accounts to test for real:** Google (create OAuth client, see README), Home Assistant URL/token. Both are tested against mocks only.
+- ⚠️ On Quincy's PC, Windows location access is denied and IP geolocation says Seattle (home is Baton Rouge), so auto location gives the wrong city until Windows location is allowed or "Always use my home city" is chosen.
+- ⏳ Exe not rebuilt since these features: new deps (Google libs, Pillow, openwakeword) need a rebuild + Defender check.
+- 💡 Voice quality: ElevenLabs was researched (Quincy's choice); waiting on his API key. The `alan-medium` Piper model is the main source of the rough sound.
+- Not included on purpose: voice identification for profiles (too heavy/unreliable), Wi-Fi radio off (needs admin), file delete, lock/garage control.
 
 ## Next steps (in order)
 
-1. Rebuild once with the updated `script fixes\build.bat` to confirm the DLL fix and zip step work end to end.
-2. Do an end-to-end test on real hardware: typed "hi", then voice weather, a timer, open Spotify/YouTube, volume up, battery, and a web search question.
-3. Install Inno Setup 6 and build `Output\JarvisSetup.exe` for the roommate.
-4. **v0.2 ideas:** optional "Hey Jarvis" wake word (openWakeWord) as a settings toggle, a system tray icon, Spotify API ("play some Drake"), and Google Calendar/Gmail tools.
+1. Run `script fixes\run.bat` and try the new features by voice on real hardware.
+2. Set up Google OAuth and Home Assistant if wanted (README).
+3. ElevenLabs voice once Quincy has a key.
+4. Rebuild the exe; submit to Microsoft as a false positive; consider code signing.
+5. Install Inno Setup 6 and build `Output\DrexyaSetup.exe` for the roommate.
 
 ## Gotchas
 
-- **`.venv` is git-ignored on purpose.** It's over 1 GB, machine-specific (its absolute path is baked in), and includes files over GitHub's 100 MB limit. Each machine creates its own with `script fixes\run.bat`.
-- **PowerShell** needs `.\` before local paths: use `.\.venv\Scripts\python run_jarvis.py`, not `.venv\Scripts\python ...`.
-- **`--windowed` exes have no console.** `sys.stdout`/`sys.stderr` are `None`, which is why `run_jarvis.py` redirects them to a log; anything that prints would otherwise crash.
-- **Python 3.12 (64-bit)** is the target. `script fixes\build.bat` tries `py -3.12` first.
-- **Unsigned exe:** Windows SmartScreen shows "Windows protected your PC". The workaround is More info → Run anyway.
-- **Mic permission:** Settings → Privacy & security → Microphone → "Let desktop apps access your microphone" must be on.
-- **Never commit** `config.json` or API keys. `.gitignore` covers `config.json`, `*.log`, `build/`, `dist/`, `Output/`, `*.spec`, and `.venv/`.
+- **`.venv` is git-ignored on purpose** (over 1 GB, machine-specific). `run.bat` creates it.
+- **PowerShell** needs `.\` before local paths. **Commit messages:** Windows PowerShell 5.1 mangles quotes when passing `-m` to git; write the message to a file and use `git commit -F`.
+- **Tests must never touch real user files.** `tests/helpers.py` redirects `NOTES_PATH` and the Google token/client paths; an early version emptied the real `notes.json`. Any new file under `%APPDATA%\Jarvis` that tools write must be redirected there too.
+- **`--windowed` exes have no console**; `run_jarvis.py` redirects stdout/stderr to a log.
+- **Python 3.12 (64-bit)** is the target (`build.bat` tries `py -3.12` first).
+- **Unsigned exe:** SmartScreen warning (More info → Run anyway) and possible Defender false positives.
+- **Mic permission:** Settings → Privacy & security → Microphone → allow desktop apps.
+- **Never commit** `config.json`, API keys, `google_client.json` or `google_token.json` (all git-ignored).
 
 ## Working style for this project
 

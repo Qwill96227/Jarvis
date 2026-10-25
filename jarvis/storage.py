@@ -33,6 +33,18 @@ CREATE TABLE IF NOT EXISTS notes (
     saved    TEXT NOT NULL
 );
 
+-- Every tool call: what ran, for whom, with what, and how it ended.
+CREATE TABLE IF NOT EXISTS audit (
+    id       INTEGER PRIMARY KEY,
+    ts       TEXT NOT NULL,                     -- local time, 'YYYY-MM-DD HH:MM:SS'
+    profile  TEXT NOT NULL,
+    tool     TEXT NOT NULL,
+    args     TEXT NOT NULL,                     -- JSON, long values shortened, secrets masked
+    outcome  TEXT NOT NULL,                     -- ok / error / declined / pin_failed
+    detail   TEXT NOT NULL DEFAULT ''           -- start of the result or error
+);
+CREATE INDEX IF NOT EXISTS audit_ts ON audit (ts);
+
 -- Extra people. The 'default' profile isn't stored here: it uses the main settings.
 CREATE TABLE IF NOT EXISTS profiles (
     id        TEXT PRIMARY KEY,                 -- lowercase name, e.g. 'marcus'

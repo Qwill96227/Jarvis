@@ -179,7 +179,7 @@ WEATHER_CODES = {
 
 class Tools(memory.MemoryTools, reminders.ReminderTools, calendar_tools.CalendarTools,
             email_tools.EmailTools, system_tools.SystemTools, location.LocationTools,
-            home_assistant.HomeAssistantTools, profiles.ProfileTools):
+            home_assistant.HomeAssistantTools, profiles.ProfileTools, safety.AuditTools):
     def __init__(self, on_timer_done=None, store: Store = None, cfg: dict = None, on_reminder=None,
                  confirm=None, on_profile_switch=None):
         # on_timer_done(label) and on_reminder(text, late) are called from background threads.
@@ -193,6 +193,7 @@ class Tools(memory.MemoryTools, reminders.ReminderTools, calendar_tools.Calendar
         self.cfg = cfg if cfg is not None else {}
         self.store = store or Store()
         self._import_old_notes()
+        safety.prune(self.store, int(self.cfg.get("audit_days", safety.AUDIT_DAYS)))
         active = self.cfg.get("active_profile", profiles.DEFAULT)
         known = {p["id"] for p in profiles.all_profiles(self.store, self.cfg)}
         self.profile = active if active in known else profiles.DEFAULT
@@ -206,6 +207,8 @@ class Tools(memory.MemoryTools, reminders.ReminderTools, calendar_tools.Calendar
         schemas = list(TOOL_SCHEMAS) + location.SCHEMAS
         if self.cfg.get("profiles_enabled", True):
             schemas += profiles.SCHEMAS
+        if self.cfg.get("audit_enabled", True):
+            schemas += safety.AUDIT_SCHEMAS
         if self.cfg.get("memory_enabled", True):
             schemas += memory.SCHEMAS
         if self.cfg.get("reminders_enabled", True):
@@ -227,35 +230,55 @@ class Tools(memory.MemoryTools, reminders.ReminderTools, calendar_tools.Calendar
 
     # ---------- dispatch ----------
     def needs_confirmation(self, name: str) -> bool:
-        return name in self.cfg.get("confirm_tools", safety.DEFAULT_CONFIRM_TOOLS)
+        return name in self.cfg.get("confirm_tools", safety.DEFAULT_CONFIRM_TOOLS) or self.needs_pin(name)
+
+    def needs_pin(self, name: str) -> bool:
+        return bool(self.cfg.get("pin_hash")) and name in self.cfg.get("pin_tools", safety.DEFAULT_PIN_TOOLS)
 
     def run(self, name: str, args: dict) -> tuple:
-        """Run a tool for Claude. Returns (result text, is_error).
+        """Run a tool for Claude. Returns (result text, is_error). Every call is audit-logged.
 
-        Irreversible tools ask the user first through self.confirm; no answer, an unclear
-        answer or no way to ask all count as no. Read-only tools retry once on a network
-        blip. Errors come back as text so Claude can try another way or explain."""
+        Irreversible tools ask the user first through self.confirm(question, detail, pin=...);
+        sensitive ones need the PIN too when one is set. No answer, an unclear answer or no
+        way to ask all count as no. Read-only tools retry once on a network blip. Errors come
+        back as text so Claude can try another way or explain."""
+        args = args or {}
+        who = self.profile  # before running: a profile switch is credited to the person who asked
+        content, is_error, outcome = self._run(name, args)
+        if self.cfg.get("audit_enabled", True):
+            try:
+                safety.log_call(self.store, who, name, args, outcome, content)
+            except Exception as e:  # logging must never break the action itself
+                print(f"[audit] {e}")
+        return content, is_error
+
+    def _run(self, name: str, args: dict) -> tuple:
+        """(content, is_error, audit outcome)"""
         fn = getattr(self, f"t_{name}", None)
         if fn is None:
-            return f"Unknown tool: {name}", True
-        args = args or {}
+            return f"Unknown tool: {name}", True, "error"
         if self.needs_confirmation(name):
             question, detail = safety.describe(name, args)
-            if not (self.confirm and self.confirm(question, detail)):
+            pin = self.needs_pin(name)
+            answer = self.confirm(question, detail, pin=pin) if self.confirm else False
+            if answer is not True:  # identity, not ==: 1 == True in Python, and only a real yes counts
+                if answer == "pin_failed":
+                    return "The PIN was wrong, so nothing was done. Don't retry.", True, "pin_failed"
                 return ("The user did not confirm, so nothing was done. Don't retry; "
-                        "ask what they'd like instead."), True
+                        "ask what they'd like instead."), True, "declined"
         attempts = 2 if name.startswith(READ_ONLY_PREFIXES) else 1
         for attempt in range(attempts):
             try:
                 result = fn(**args)
-                return (result if isinstance(result, str) else json.dumps(result)), False
+                return (result if isinstance(result, str) else json.dumps(result)), False, "ok"
             except requests.RequestException as e:
                 if attempt + 1 < attempts:
                     time.sleep(1)
                     continue
-                return f"Error running {name}: network problem ({type(e).__name__}). It may work if retried later.", True
+                return (f"Error running {name}: network problem ({type(e).__name__}). "
+                        "It may work if retried later."), True, "error"
             except Exception as e:
-                return f"Error running {name}: {e}", True
+                return f"Error running {name}: {e}", True, "error"
 
     def dispatch(self, name: str, args: dict) -> str:
         return self.run(name, args)[0]

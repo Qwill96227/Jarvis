@@ -24,6 +24,7 @@ Click the glowing core (or press **Ctrl+Alt+J** from anywhere), talk, click agai
 | "Turn the kitchen lights to 40%" / "Turn off the coffee maker" / "Set the heat to 72" | Home Assistant (optional) |
 | "Hey Jarvis, …" (hands-free) / say it again to interrupt | Wake word (optional) |
 | "This is Marcus" / "Add a profile for Ana" / "Switch back to Quincy" | Profiles for people sharing the laptop |
+| "What have you done today?" | Activity log (every action is recorded) |
 | Anything else | Just conversation |
 
 ## Memory
@@ -58,6 +59,12 @@ When you ask for the weather without naming a place, Drexya works out where you 
 - **Windows Location** has to be allowed: Settings → Privacy & security → Location → turn on **Location services** and **Let desktop apps access your location**. If it's off, Drexya skips straight to the IP lookup.
 - **IP lookups can be wrong**, sometimes by hundreds of miles: VPNs, mobile hotspots and some internet providers report a different city. Drexya always names the place it used ("In Seattle…"), so you'll notice; if it's wrong, allow Windows Location or pick **Always use my home city**.
 - Privacy: the IP lookup uses ipinfo.io and turning coordinates into a city name uses BigDataCloud; both see your IP address. The location is remembered for 10 minutes.
+
+## Security PIN and activity log
+
+**PIN.** In settings, set a **Security PIN** (4–8 digits). From then on, sending email, deleting all notes and moving files need the PIN typed into the confirmation box, as well as a yes. It has to be typed, not spoken, so nobody nearby overhears it. Three wrong tries cancels the action. The PIN is stored only as a salted hash (PBKDF2) in `config.json`, never as the digits themselves. To change it, type a new one; to remove it, tick **Remove PIN**. Which actions need it: `"pin_tools"` in `config.json`.
+
+**Activity log.** Every action Drexya takes is recorded with the time, the person, what it did, the details and the outcome (done, error, declined or wrong PIN). Long text is shortened and anything that looks like a token or password is masked. See it with **View activity log** in settings, or ask "What have you done today?" (which shows only the active person's actions). Entries older than 90 days are deleted automatically (`"audit_days"`); turn logging off with `"audit_enabled": false`. It's stored in `drexya.db` on the laptop.
 
 ## Profiles (sharing the laptop)
 
@@ -163,7 +170,7 @@ jarvis/
   location.py        current location: Windows location -> IP -> home city
   home_assistant.py  lights, switches, fans, thermostats via Home Assistant's REST API
   wakeword.py        always-on wake word listener + end-of-speech detection
-  safety.py          which tools need confirmation, how to describe them, spoken yes/no
+  safety.py          confirmation/PIN rules, spoken yes/no, PIN hashing, audit log
   profiles.py        people sharing the laptop: list / switch / create
   providers/  base.py interfaces, google.py (OAuth, Google Calendar, Gmail); add outlook.py later
   storage.py  SQLite database (%APPDATA%\Jarvis\drexya.db)

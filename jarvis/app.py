@@ -241,6 +241,23 @@ class SettingsDialog(ctk.CTkToplevel):
         self.ha_token.insert(0, cfg.get("ha_token", ""))
         self.ha_token.pack(padx=24, anchor="w")
 
+        ctk.CTkLabel(body, text="Security PIN (4-8 digits) for sending email, deleting notes, moving files",
+                     text_color=TEXT, wraplength=390, justify="left").pack(**pad)
+        pin_row = ctk.CTkFrame(body, fg_color=PANEL)
+        pin_row.pack(padx=24, anchor="w")
+        self.pin = ctk.CTkEntry(pin_row, width=170, show="•",
+                                placeholder_text="Change PIN" if cfg.get("pin_hash") else "Set a PIN")
+        self.pin.pack(side="left")
+        self.pin_off = ctk.CTkCheckBox(pin_row, text="Remove PIN", text_color=TEXT, fg_color=CYAN)
+        if cfg.get("pin_hash"):
+            self.pin_off.pack(side="left", padx=(10, 0))
+        self.pin_status = ctk.CTkLabel(body, text_color=MUTED,
+                                       text="PIN is set." if cfg.get("pin_hash") else "No PIN: confirmation only.")
+        self.pin_status.pack(padx=24, anchor="w")
+
+        ctk.CTkButton(body, text="View activity log", width=160, fg_color=CYAN_DIM, hover_color=CYAN,
+                      command=self._show_activity).pack(padx=24, pady=(12, 4), anchor="w")
+
         ctk.CTkButton(self, text="Save", fg_color=CYAN, text_color=BG, hover_color="#7fe6ff",
                       command=self._save, width=390).pack(padx=24, pady=16, anchor="w")
 
@@ -321,7 +338,19 @@ class SettingsDialog(ctk.CTkToplevel):
         if self.tools is not None and self._profile != self.tools.profile:
             self.tools.switch_profile(self._profile)
 
+    def _show_activity(self):
+        if self.tools is not None:
+            ActivityLog(self, safety.recent(self.tools.store, limit=300))
+
     def _save(self):
+        new_pin = self.pin.get().strip()
+        if new_pin and not safety.valid_pin(new_pin):
+            self.pin_status.configure(text="The PIN must be 4 to 8 digits.", text_color=RED)
+            return
+        if self.pin_off.get():
+            self.cfg["pin_hash"] = ""
+        elif new_pin:
+            self.cfg["pin_hash"] = safety.hash_pin(new_pin)
         self._save_people()
         self.cfg.update({
             **self._chosen_providers(),
@@ -342,32 +371,67 @@ class SettingsDialog(ctk.CTkToplevel):
         self.destroy()
 
 
-class ConfirmDialog(ctk.CTkToplevel):
-    """Yes/No box for an irreversible action. on_answer(bool) is called once."""
+class ActivityLog(ctk.CTkToplevel):
+    """Read-only view of the audit log, newest first."""
 
-    def __init__(self, master, question, detail, on_answer):
+    def __init__(self, master, rows):
+        super().__init__(master)
+        self.title("Drexya activity log")
+        self.geometry("620x480")
+        self.configure(fg_color=PANEL)
+        self.transient(master)
+        box = ctk.CTkTextbox(self, fg_color=BG, text_color=TEXT, wrap="none", font=ctk.CTkFont(family="Consolas", size=12))
+        lines = [f"{r['ts']}  {r['outcome']:<10} {r['profile']:<10} {r['tool']:<22} {r['args']}" for r in rows]
+        box.insert("1.0", "\n".join(lines) or "Nothing logged yet.")
+        box.configure(state="disabled")
+        box.pack(fill="both", expand=True, padx=12, pady=12)
+
+
+class ConfirmDialog(ctk.CTkToplevel):
+    """Yes/No box for an irreversible action. on_answer(True / False / "pin_failed") is called
+    once. With check_pin, Yes only counts after the right PIN; 3 wrong tries cancels."""
+
+    def __init__(self, master, question, detail, on_answer, check_pin=None):
         super().__init__(master)
         self.title("Drexya: please confirm")
-        self.geometry("440x360")
+        self.geometry("440x420" if check_pin else "440x360")
         self.configure(fg_color=PANEL)
         self.transient(master)
         self.attributes("-topmost", True)
-        self.on_answer = on_answer
+        self.on_answer, self.check_pin, self.tries = on_answer, check_pin, 0
         ctk.CTkLabel(self, text=question, text_color=AMBER, wraplength=400, justify="left",
                      font=ctk.CTkFont(size=16, weight="bold")).pack(padx=20, pady=(18, 8), anchor="w")
         box = ctk.CTkTextbox(self, fg_color=BG, text_color=TEXT, wrap="word", height=200)
         box.insert("1.0", detail)
         box.configure(state="disabled")
         box.pack(fill="both", expand=True, padx=20)
+        self.pin = None
+        if check_pin:
+            self.pin_note = ctk.CTkLabel(self, text="Enter your PIN to confirm", text_color=TEXT)
+            self.pin_note.pack(pady=(10, 2))
+            self.pin = ctk.CTkEntry(self, width=160, show="•", justify="center")
+            self.pin.pack()
+            self.pin.bind("<Return>", lambda e: self._yes())
         row = ctk.CTkFrame(self, fg_color=PANEL)
         row.pack(pady=14)
         ctk.CTkButton(row, text="Yes", width=120, fg_color=CYAN, text_color=BG, hover_color="#7fe6ff",
-                      command=lambda: self.answer(True)).pack(side="left", padx=8)
+                      command=self._yes).pack(side="left", padx=8)
         ctk.CTkButton(row, text="No", width=120, fg_color=CYAN_DIM, hover_color=RED,
                       command=lambda: self.answer(False)).pack(side="left", padx=8)
         self.bind("<Escape>", lambda e: self.answer(False))
         self.protocol("WM_DELETE_WINDOW", lambda: self.answer(False))
-        self.after(50, self.focus_force)
+        self.after(50, lambda: (self.pin or self).focus_force())
+
+    def _yes(self):
+        if not self.check_pin:
+            return self.answer(True)
+        if self.check_pin(self.pin.get()):
+            return self.answer(True)
+        self.tries += 1
+        if self.tries >= safety.PIN_ATTEMPTS:
+            return self.answer("pin_failed")
+        self.pin.delete(0, "end")
+        self.pin_note.configure(text=f"Wrong PIN. {safety.PIN_ATTEMPTS - self.tries} tries left.", text_color=RED)
 
     def answer(self, ok):
         if self.on_answer:
@@ -611,10 +675,11 @@ class JarvisApp(ctk.CTk):
             threading.Thread(target=self._say, args=(text,), daemon=True).start()
 
     # ---------- confirmations ----------
-    def _confirm(self, question, detail) -> bool:
+    def _confirm(self, question, detail, pin=False):
         """Ask before an irreversible action. Runs on the worker thread and blocks until the
         user clicks Yes/No or, for spoken requests, says yes or no. Silence, an unclear answer
-        or a minute with no answer all mean no."""
+        or a minute with no answer all mean no. With pin, the PIN must be typed (never spoken,
+        since others could hear it). Returns True, False or "pin_failed"."""
         answers = queue.Queue()
         heard = threading.Event()  # set when answered, so a voice listen can stop early
         self.confirming = True
@@ -623,8 +688,12 @@ class JarvisApp(ctk.CTk):
             heard.set()
             answers.put(ok)
 
-        self.ui(self._show_confirm, question, detail, answer)
-        if self._voice_turn and self.cfg.get("voice_enabled", True):
+        self.ui(self._show_confirm, question, detail, answer, pin)
+        if pin:
+            if self._voice_turn and self.cfg.get("voice_enabled", True):
+                self._say(f"{question} Type your PIN to confirm.")
+            self.ui(self._set_state, "thinking", "Waiting for your PIN…")
+        elif self._voice_turn and self.cfg.get("voice_enabled", True):
             self.ui(self._set_state, "speaking", "Waiting for your yes or no…")
             self._say(f"{question} Say yes or no.")
             if not heard.is_set():
@@ -640,8 +709,9 @@ class JarvisApp(ctk.CTk):
         self.ui(self._set_state, "thinking")
         return ok
 
-    def _show_confirm(self, question, detail, answer):
-        self._confirm_dialog = ConfirmDialog(self, question, detail, answer)
+    def _show_confirm(self, question, detail, answer, pin=False):
+        check = (lambda typed: safety.verify_pin(self.cfg.get("pin_hash", ""), typed)) if pin else None
+        self._confirm_dialog = ConfirmDialog(self, question, detail, answer, check_pin=check)
 
     def _close_confirm(self):
         dialog = getattr(self, "_confirm_dialog", None)
