@@ -16,6 +16,7 @@ NOTES_PATH = APP_DIR / "notes.json"
 DB_PATH = APP_DIR / "drexya.db"           # memory, reminders, profiles, audit log
 GOOGLE_CLIENT_PATH = APP_DIR / "google_client.json"  # OAuth client you download from Google Cloud
 GOOGLE_TOKEN_PATH = APP_DIR / "google_token.json"    # written after you click Connect Google
+WAKEWORD_DIR = APP_DIR / "wakeword"                  # downloaded wake word models
 VOICES_DIR = APP_DIR / "voices"
 
 # Claude models offered in settings: id -> (menu label, note shown under the menu)
@@ -48,6 +49,9 @@ DEFAULTS = {
     "location_mode": "auto",              # auto (Windows, then IP, then home city) / ip / home
     "ha_url": "",                         # Home Assistant, e.g. http://homeassistant.local:8123
     "ha_token": "",                       # Home Assistant long-lived access token
+    "wake_word_enabled": False,           # always-on listening; off by default to save battery
+    "wake_word": "hey_jarvis",            # hey_jarvis / alexa / hey_mycroft, or a path to a custom .onnx
+    "wake_word_threshold": 0.5,           # 0-1; raise if it triggers by mistake, lower if it misses you
 }
 
 

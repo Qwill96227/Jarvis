@@ -22,6 +22,7 @@ Click the glowing core (or press **Ctrl+Alt+J** from anywhere), talk, click agai
 | "Brightness to 40" / "Am I on Wi-Fi?" / "Connect to HomeNet" | Screen brightness (laptops) and Wi-Fi |
 | "Where am I?" / "What's the weather?" (no city) | Location awareness |
 | "Turn the kitchen lights to 40%" / "Turn off the coffee maker" / "Set the heat to 72" | Home Assistant (optional) |
+| "Hey Jarvis, …" (hands-free) / say it again to interrupt | Wake word (optional) |
 | Anything else | Just conversation |
 
 ## Memory
@@ -56,6 +57,17 @@ When you ask for the weather without naming a place, Drexya works out where you 
 - **Windows Location** has to be allowed: Settings → Privacy & security → Location → turn on **Location services** and **Let desktop apps access your location**. If it's off, Drexya skips straight to the IP lookup.
 - **IP lookups can be wrong**, sometimes by hundreds of miles: VPNs, mobile hotspots and some internet providers report a different city. Drexya always names the place it used ("In Seattle…"), so you'll notice; if it's wrong, allow Windows Location or pick **Always use my home city**.
 - Privacy: the IP lookup uses ipinfo.io and turning coordinates into a city name uses BigDataCloud; both see your IP address. The location is remembered for 10 minutes.
+
+## Wake word and interrupting
+
+Turn on **Listen for a wake word** in settings and Drexya listens for a phrase, then records until you stop talking, with no clicking needed. Choices: **Hey Jarvis** (default), **Alexa**, **Hey Mycroft**.
+
+- **Interrupting:** while Drexya is talking, say the wake word, press the hotkey or click the core to cut it off and start listening.
+- **Privacy:** listening runs entirely on the laptop with [openWakeWord](https://github.com/dscripka/openWakeWord). Audio is checked in 80 ms pieces and never stored or sent; nothing goes to Claude until after the wake word.
+- **Battery:** always-on listening uses some CPU continuously, which is why it's off by default.
+- **Tuning:** if it triggers by mistake, raise `"wake_word_threshold"` in `%APPDATA%\Jarvis\config.json` (e.g. 0.7); if it misses you, lower it (e.g. 0.35).
+- **A custom "Hey Drexya":** there's no ready-made model for it, but openWakeWord's free training notebook (linked from its GitHub page) can make one in about an hour. Save the `.onnx` file somewhere on the laptop and set `"wake_word"` to its full path in `config.json`.
+- The models (a few MB) download to `%APPDATA%\Jarvis\wakeword` the first time it's switched on.
 
 ## Smart home (Home Assistant)
 
@@ -129,6 +141,7 @@ jarvis/
   system_tools.py    close apps, windows, screenshots, files, brightness, Wi-Fi
   location.py        current location: Windows location -> IP -> home city
   home_assistant.py  lights, switches, fans, thermostats via Home Assistant's REST API
+  wakeword.py        always-on wake word listener + end-of-speech detection
   providers/  base.py interfaces, google.py (OAuth, Google Calendar, Gmail); add outlook.py later
   storage.py  SQLite database (%APPDATA%\Jarvis\drexya.db)
   voice.py    mic recording, Whisper (speech-to-text), Piper (text-to-speech)

@@ -8,7 +8,7 @@ from datetime import datetime
 
 import customtkinter as ctk
 
-from . import config, providers
+from . import config, providers, wakeword
 from .brain import Brain
 from .tools import Tools, keyboard
 from .voice import Recorder, Speaker, Transcriber
@@ -162,6 +162,22 @@ class SettingsDialog(ctk.CTkToplevel):
             self.voice.select()
         self.voice.pack(**pad)
 
+        self.wake_on = ctk.CTkSwitch(body, text="Listen for a wake word (uses more battery)", text_color=TEXT,
+                                     progress_color=CYAN)
+        if cfg.get("wake_word_enabled"):
+            self.wake_on.select()
+        self.wake_on.pack(**pad)
+        self._wake_choices = {wakeword.phrase(k): k for k in wakeword.PRETRAINED}
+        current_wake = cfg.get("wake_word", "hey_jarvis")
+        if current_wake not in wakeword.PRETRAINED:  # custom model path from config.json
+            self._wake_choices[wakeword.phrase(current_wake)] = current_wake
+        self.wake_word = ctk.CTkOptionMenu(body, values=list(self._wake_choices), width=180,
+                                           fg_color=CYAN_DIM, button_color=CYAN_DIM, button_hover_color=CYAN)
+        self.wake_word.set(wakeword.phrase(current_wake))
+        self.wake_word.pack(padx=24, anchor="w")
+        ctk.CTkLabel(body, text="Say it, then just talk. Say it again to interrupt.",
+                     text_color=MUTED).pack(padx=24, anchor="w")
+
         self.search = ctk.CTkSwitch(body, text="Allow web search (~1¢ per search)", text_color=TEXT,
                                     progress_color=CYAN)
         if cfg.get("web_search", True):
@@ -251,6 +267,8 @@ class SettingsDialog(ctk.CTkToplevel):
             "voice_enabled": bool(self.voice.get()),
             "web_search": bool(self.search.get()),
             "memory_enabled": bool(self.memory.get()),
+            "wake_word_enabled": bool(self.wake_on.get()),
+            "wake_word": self._wake_choices[self.wake_word.get()],
         })
         config.save(self.cfg)
         self.on_save()
@@ -272,6 +290,8 @@ class JarvisApp(ctk.CTk):
             pass
 
         self.busy = False
+        self.speaking = False  # True while a reply is being spoken, so it can be interrupted
+        self.wake = None       # WakeListener when the wake word is on
         self.tools = Tools(on_timer_done=self._timer_done, cfg=self.cfg, on_reminder=self._reminder_due)
         self.brain = None
         self.recorder = Recorder()
@@ -281,6 +301,7 @@ class JarvisApp(ctk.CTk):
         self._build_ui()
         self._init_brain()
         self._register_hotkey()
+        self._setup_wake()
 
         if not self.cfg.get("api_key"):
             self.after(400, lambda: self.open_settings(first_run=True))
@@ -327,6 +348,8 @@ class JarvisApp(ctk.CTk):
     def _set_state(self, state, detail=None):
         self.reactor.set_state(state)
         text = detail or STATE_TEXT[state].format(hk=self.cfg.get("hotkey", "").upper())
+        if state == "idle" and not detail and self.wake and not self.wake.error:
+            text = f"Online — say “{wakeword.phrase(self.cfg['wake_word'])}” or click the core"
         self.status.configure(text=text)
 
     def _append(self, who, text):
@@ -355,11 +378,22 @@ class JarvisApp(ctk.CTk):
         except Exception as e:
             print(f"[hotkey] couldn't register: {e}")
 
+    def _setup_wake(self):
+        """(Re)start the wake word listener to match settings."""
+        if self.wake:
+            self.wake.stop()
+            self.wake = None
+        if self.cfg.get("wake_word_enabled"):
+            self.wake = wakeword.WakeListener(self.cfg.get("wake_word", "hey_jarvis"),
+                                              float(self.cfg.get("wake_word_threshold", 0.5)),
+                                              on_wake=lambda: self.ui(self._on_wake)).start()
+
     def open_settings(self, first_run=False):
         SettingsDialog(self, self.cfg, on_save=self._settings_saved, first_run=first_run)
 
     def _settings_saved(self):
         self._init_brain()
+        self._setup_wake()
         self._set_state("idle")
         self._greet()
 
@@ -379,20 +413,36 @@ class JarvisApp(ctk.CTk):
         self._speak_async(line)
 
     # ---------- interaction ----------
-    def toggle_listen(self):
+    def toggle_listen(self, hands_free=False):
+        """Click, hotkey or wake word. Stops recording if recording; otherwise starts it,
+        cutting off Drexya mid-sentence if he's talking. hands_free stops on silence."""
         if self.recorder.recording:
             audio = self.recorder.stop()
+            if self.wake:
+                self.wake.resume()
             self._set_state("thinking", "Transcribing…")
             threading.Thread(target=self._transcribe_then_ask, args=(audio,), daemon=True).start()
             return
-        if self.busy:
-            return
-        self.speaker.stop()
+        if self.speaking:
+            self.speaker.stop()  # interrupt; the reply thread finishes on its own
+        elif self.busy:
+            return  # still thinking about the last request
         try:
-            self.recorder.start()
-            self._set_state("listening")
+            on_end = (lambda: self.ui(self._heard_enough)) if hands_free else None
+            self.recorder.start(on_end=on_end)
+            if self.wake:
+                self.wake.pause()
+            self._set_state("listening", "Listening…" if hands_free else None)
         except Exception as e:
             self._append("jarvis", f"I can't access the microphone: {e}")
+
+    def _on_wake(self):
+        if not self.recorder.recording:
+            self.toggle_listen(hands_free=True)
+
+    def _heard_enough(self):
+        if self.recorder.recording:
+            self.toggle_listen()
 
     def _transcribe_then_ask(self, audio):
         if not self.transcriber.ready and self.transcriber.error is None:
@@ -431,13 +481,25 @@ class JarvisApp(ctk.CTk):
         self.ui(self._append, "jarvis", reply)
         if speak and self.cfg.get("voice_enabled", True):
             self.ui(self._set_state, "speaking")
-            self.speaker.say(reply)  # whole reply as one clip, no gaps between sentences
+            self._say(reply)  # whole reply as one clip, no gaps between sentences
         self.busy = False
-        self.ui(self._set_state, "idle")
+        self.ui(self._idle_unless_listening)
+
+    def _idle_unless_listening(self):
+        if not self.recorder.recording:  # the user may have interrupted to ask something else
+            self._set_state("idle")
+
+    def _say(self, text):
+        """Speak (blocking) and mark it interruptible."""
+        self.speaking = True
+        try:
+            self.speaker.say(text)
+        finally:
+            self.speaking = False
 
     def _speak_async(self, text):
         if self.cfg.get("voice_enabled", True):
-            threading.Thread(target=self.speaker.say, args=(text,), daemon=True).start()
+            threading.Thread(target=self._say, args=(text,), daemon=True).start()
 
     def _timer_done(self, label):
         name = self.cfg.get("user_name") or "sir"

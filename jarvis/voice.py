@@ -25,12 +25,22 @@ class Recorder:
     def recording(self):
         return self._stream is not None
 
-    def start(self):
+    def start(self, on_end=None):
+        """Start recording. With on_end, it's hands-free: on_end() is called once (from the
+        audio thread) when the user stops talking; the caller then calls stop()."""
+        from .wakeword import EndOfSpeech
         self._chunks = []
-        self._stream = sd.InputStream(
-            samplerate=SAMPLE_RATE, channels=1, dtype="float32",
-            callback=lambda data, frames, t, status: self._chunks.append(data.copy()),
-        )
+        detector = EndOfSpeech() if on_end else None
+        ended = False
+
+        def callback(data, frames, t, status):
+            nonlocal ended
+            self._chunks.append(data.copy())
+            if detector and not ended and detector.feed(data[:, 0]):
+                ended = True
+                on_end()
+
+        self._stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="float32", callback=callback)
         self._stream.start()
 
     def stop(self) -> np.ndarray:
