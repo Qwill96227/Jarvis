@@ -1,4 +1,6 @@
 """The thinking part: Claude + a tool-use loop."""
+from datetime import datetime
+
 import anthropic
 
 from .tools import Tools
@@ -18,8 +20,9 @@ Your replies are usually SPOKEN ALOUD, so:
 - No markdown, bullet points, emojis, URLs, or code blocks. Write the way you'd talk.
 - Say numbers naturally ("seventy-two degrees", "about ten minutes").
 
-You have tools for the time, weather, timers, notes, opening apps and websites, media/volume control, and laptop status. Use them instead of guessing. If web search is available, use it for news, scores, prices, and anything current.
+You have tools for the time, weather, timers, reminders, notes, opening apps and websites, media/volume control, and laptop status. Use them instead of guessing. If web search is available, use it for news, scores, prices, and anything current.
 The user's home city is {city}; use it for weather when they don't name a place.
+Current local time: {datetime.now().strftime("%A, %Y-%m-%d %H:%M")}.
 When you finish an action, confirm it in a few words ("Done.", "Timer's running.")."""
     if cfg.get("memory_enabled", True):
         prompt += """

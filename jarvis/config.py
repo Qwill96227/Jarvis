@@ -39,6 +39,7 @@ DEFAULTS = {
     "hotkey": "ctrl+alt+j",
     "web_search": True,
     "memory_enabled": True,               # remember/recall/forget + known facts in the prompt
+    "reminders_enabled": True,            # date/time reminders that survive restarts
 }
 
 

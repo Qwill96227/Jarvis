@@ -18,7 +18,7 @@ from datetime import datetime
 
 import requests
 
-from . import config, memory
+from . import config, memory, reminders
 from .storage import Store
 
 try:
@@ -173,21 +173,26 @@ WEATHER_CODES = {
 }
 
 
-class Tools(memory.MemoryTools):
-    def __init__(self, on_timer_done=None, store: Store = None, cfg: dict = None):
-        # on_timer_done(label) is called from a background thread when a timer finishes
+class Tools(memory.MemoryTools, reminders.ReminderTools):
+    def __init__(self, on_timer_done=None, store: Store = None, cfg: dict = None, on_reminder=None):
+        # on_timer_done(label) and on_reminder(text, late) are called from background threads
         self.on_timer_done = on_timer_done or (lambda label: None)
         self.timers = {}  # id -> (label, end_time)
         self._timer_id = 0
         self.cfg = cfg if cfg is not None else {}
         self.store = store or Store()
         self.profile = "default"
+        self.reminder_scheduler = None
+        if on_reminder and self.cfg.get("reminders_enabled", True):
+            self.reminder_scheduler = reminders.ReminderScheduler(self.store, on_reminder).start()
 
     def schemas(self) -> list:
         """Tool definitions to send to Claude, leaving out features switched off in settings."""
         schemas = list(TOOL_SCHEMAS)
         if self.cfg.get("memory_enabled", True):
             schemas += memory.SCHEMAS
+        if self.cfg.get("reminders_enabled", True):
+            schemas += reminders.SCHEMAS
         return schemas
 
     def memory_summary(self) -> list:

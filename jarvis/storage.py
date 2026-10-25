@@ -16,6 +16,15 @@ CREATE TABLE IF NOT EXISTS memories (
     text     TEXT NOT NULL,
     saved    TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS reminders (
+    id       INTEGER PRIMARY KEY,
+    profile  TEXT NOT NULL DEFAULT 'default',
+    text     TEXT NOT NULL,
+    due      TEXT NOT NULL,                     -- local time, 'YYYY-MM-DD HH:MM:SS'
+    status   TEXT NOT NULL DEFAULT 'pending',   -- pending / fired / cancelled
+    created  TEXT NOT NULL
+);
 """
 
 

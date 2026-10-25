@@ -198,7 +198,7 @@ class JarvisApp(ctk.CTk):
             pass
 
         self.busy = False
-        self.tools = Tools(on_timer_done=self._timer_done, cfg=self.cfg)
+        self.tools = Tools(on_timer_done=self._timer_done, cfg=self.cfg, on_reminder=self._reminder_due)
         self.brain = None
         self.recorder = Recorder()
         self.transcriber = Transcriber(self.cfg["whisper_model"])
@@ -367,7 +367,15 @@ class JarvisApp(ctk.CTk):
 
     def _timer_done(self, label):
         name = self.cfg.get("user_name") or "sir"
-        line = f"{name}, your {label} timer is done."
+        self._announce(f"{name}, your {label} timer is done.")
+
+    def _reminder_due(self, text, late):
+        name = self.cfg.get("user_name") or "sir"
+        self._announce(f"While I was off, you had a reminder: {text}." if late
+                       else f"{name}, a reminder: {text}.")
+
+    def _announce(self, line):
+        """Speak and show something Drexya says unprompted (timers, reminders). Any thread."""
         self.ui(self._append, "jarvis", line)
         self.ui(self.bell)
         self.ui(self.deiconify)

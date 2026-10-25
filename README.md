@@ -14,11 +14,16 @@ Click the glowing core (or press **Ctrl+Alt+J** from anywhere), talk, click agai
 | "How's my battery?" | Laptop status |
 | "Who won the game last night?" | Claude web search |
 | "Remember I take my coffee black" / "What do you know about me?" / "Forget that" | Long-term memory |
+| "Remind me tomorrow at 9 to call the dentist" / "What reminders do I have?" / "Cancel the trash one" | Reminders (survive restarts) |
 | Anything else | Just conversation |
 
 ## Memory
 
 Drexya remembers lasting preferences and facts you tell it ("I prefer Celsius", "my sister is Ana") and uses them in later chats. Ask "what do you remember about me?" to see them, or "forget that" to remove one. Memories are stored on the laptop in `%APPDATA%\Jarvis\drexya.db`, and the most recent 40 are included with each request to Claude. Turn it off in settings with **Remember things about me between chats**.
+
+## Reminders
+
+Timers are quick countdowns that end if Drexya is closed. Reminders are for a date and time ("Friday at 6pm"): they're saved in `drexya.db`, survive restarts, and any that came due while Drexya was closed are announced the next time it starts ("While I was off, you had a reminder…"). Drexya needs to be running for a reminder to go off on time, so tick **Start Drexya when Windows starts** in the installer if you rely on them. To switch reminders off, set `"reminders_enabled": false` in `%APPDATA%\Jarvis\config.json`.
 
 ## Privacy
 
@@ -56,6 +61,7 @@ jarvis/
   brain.py    Claude tool-use loop + Drexya's personality (system prompt)
   tools.py    weather, timers, notes, apps, media, battery; inherits the feature mixins below
   memory.py   remember / recall / forget
+  reminders.py  set / list / cancel reminders + background scheduler
   storage.py  SQLite database (%APPDATA%\Jarvis\drexya.db)
   voice.py    mic recording, Whisper (speech-to-text), Piper (text-to-speech)
   config.py   settings in %APPDATA%\Jarvis
