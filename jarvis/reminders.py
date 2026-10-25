@@ -63,7 +63,8 @@ def parse_when(when: str) -> datetime:
 
 class ReminderScheduler:
     """Background thread that sleeps until the next pending reminder and fires it.
-    on_due(text, late) runs on this thread; late=True if it came due while Drexya was off."""
+    on_due(text, late, profile) runs on this thread; late=True if it came due while Drexya
+    was off; profile is whose reminder it is."""
 
     def __init__(self, store, on_due):
         self.store = store
@@ -87,7 +88,7 @@ class ReminderScheduler:
         """Fire every pending reminder that's due. Returns what fired (for tests)."""
         now = now or datetime.now()
         due = self.store.query(
-            "SELECT id, text, due FROM reminders WHERE status = 'pending' AND due <= ? ORDER BY due",
+            "SELECT id, profile, text, due FROM reminders WHERE status = 'pending' AND due <= ? ORDER BY due",
             (now.strftime(DUE_FORMAT),))
         fired = []
         for r in due:
@@ -97,7 +98,7 @@ class ReminderScheduler:
                 late = now - datetime.strptime(r["due"], DUE_FORMAT) > LATE_AFTER
                 fired.append((r["text"], late))
                 try:
-                    self.on_due(r["text"], late)
+                    self.on_due(r["text"], late, r["profile"])
                 except Exception as e:
                     print(f"[reminders] announcing failed: {e}")
         return fired

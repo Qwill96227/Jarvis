@@ -52,7 +52,7 @@ class SchedulerTests(ToolsTestCase):
     def setUp(self):
         super().setUp()
         self.fired = []
-        self.scheduler = ReminderScheduler(self.store, lambda text, late: self.fired.append((text, late)))
+        self.scheduler = ReminderScheduler(self.store, lambda text, late, profile: self.fired.append((text, late)))
 
     def add(self, text, due: datetime, status="pending"):
         self.store.run("INSERT INTO reminders (profile, text, due, status, created) VALUES ('default', ?, ?, ?, ?)",
@@ -85,7 +85,7 @@ class SchedulerTests(ToolsTestCase):
 
     def test_background_thread_fires_new_reminder(self):
         done = threading.Event()
-        self.scheduler.on_due = lambda text, late: done.set()
+        self.scheduler.on_due = lambda text, late, profile: done.set()
         self.scheduler.start()
         self.add("soon", datetime.now() + timedelta(seconds=1))
         self.scheduler.wake()

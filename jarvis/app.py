@@ -9,7 +9,7 @@ from datetime import datetime
 
 import customtkinter as ctk
 
-from . import config, providers, safety, wakeword
+from . import config, profiles, providers, safety, wakeword
 from .brain import Brain
 from .tools import Tools, keyboard
 from .voice import Recorder, Speaker, Transcriber
@@ -91,7 +91,7 @@ class Reactor(ctk.CTkCanvas):
 
 
 class SettingsDialog(ctk.CTkToplevel):
-    def __init__(self, master, cfg, on_save, first_run=False):
+    def __init__(self, master, cfg, on_save, first_run=False, tools=None):
         super().__init__(master)
         self.title("Drexya settings")
         self.geometry("440x660")
@@ -99,7 +99,8 @@ class SettingsDialog(ctk.CTkToplevel):
         self.resizable(False, False)
         self.transient(master)
         self.after(100, self.grab_set)
-        self.cfg, self.on_save = cfg, on_save
+        self.cfg, self.on_save, self.tools = cfg, on_save, tools
+        self._edits = {}  # profile id -> (name, city) typed in but not saved yet
 
         # Scrollable so new settings fit; Save stays pinned at the bottom
         body = ctk.CTkScrollableFrame(self, fg_color=PANEL)
@@ -130,15 +131,30 @@ class SettingsDialog(ctk.CTkToplevel):
         self.model_note.pack(padx=24, anchor="w")
         self._show_model_note(current[0])
 
+        if tools is not None and cfg.get("profiles_enabled", True):
+            ctk.CTkLabel(body, text="Who's using Drexya (each person has their own notes and reminders)",
+                         text_color=TEXT, wraplength=390, justify="left").pack(**pad)
+            row = ctk.CTkFrame(body, fg_color=PANEL)
+            row.pack(padx=24, anchor="w")
+            self.profile_menu = ctk.CTkOptionMenu(row, values=["Main"], width=260, fg_color=CYAN_DIM,
+                                                  button_color=CYAN_DIM, button_hover_color=CYAN,
+                                                  command=self._pick_profile)
+            self.profile_menu.pack(side="left")
+            ctk.CTkButton(row, text="+ Add person", width=120, fg_color=CYAN_DIM, hover_color=CYAN,
+                          command=self._add_profile).pack(side="left", padx=(8, 0))
+        else:
+            self.profile_menu = None
+        self._profile = tools.profile if tools is not None else profiles.DEFAULT
+
         ctk.CTkLabel(body, text="What should Drexya call you?", text_color=TEXT).pack(**pad)
         self.name = ctk.CTkEntry(body, width=390, placeholder_text="e.g. Marcus, or 'sir'")
-        self.name.insert(0, cfg.get("user_name", ""))
         self.name.pack(padx=24, anchor="w")
 
         ctk.CTkLabel(body, text="Home city (for weather)", text_color=TEXT).pack(**pad)
         self.city = ctk.CTkEntry(body, width=390, placeholder_text="e.g. Baton Rouge")
-        self.city.insert(0, cfg.get("home_city", ""))
         self.city.pack(padx=24, anchor="w")
+        self._refresh_profiles()
+        self._fill_person(self._profile)
 
         ctk.CTkLabel(body, text="Location for weather", text_color=TEXT).pack(**pad)
         self.location = ctk.CTkOptionMenu(body, values=list(LOCATION_CHOICES), width=390,
@@ -254,13 +270,63 @@ class SettingsDialog(ctk.CTkToplevel):
 
         threading.Thread(target=run, daemon=True).start()
 
+    # ---------- profiles ----------
+    def _people(self) -> list:
+        if self.tools is None:
+            return [{"id": profiles.DEFAULT, "name": self.cfg.get("user_name") or "Main",
+                     "home_city": self.cfg.get("home_city", "")}]
+        return profiles.all_profiles(self.tools.store, self.cfg)
+
+    def _refresh_profiles(self):
+        if self.profile_menu is None:
+            return
+        self._profile_labels = {p["name"]: p["id"] for p in self._people()}
+        self.profile_menu.configure(values=list(self._profile_labels))
+        self.profile_menu.set(next(n for n, pid in self._profile_labels.items() if pid == self._profile))
+
+    def _fill_person(self, pid):
+        """Show a profile's name and city, including unsaved edits."""
+        person = next((p for p in self._people() if p["id"] == pid), self._people()[0])
+        name, city = self._edits.get(pid, (person["name"] if pid != profiles.DEFAULT else
+                                           self.cfg.get("user_name", ""), person["home_city"]))
+        for entry, value in ((self.name, name), (self.city, city)):
+            entry.delete(0, "end")
+            entry.insert(0, value)
+
+    def _pick_profile(self, label):
+        self._edits[self._profile] = (self.name.get().strip(), self.city.get().strip())
+        self._profile = self._profile_labels[label]
+        self._fill_person(self._profile)
+
+    def _add_profile(self):
+        name = ctk.CTkInputDialog(text="Their name:", title="Add a person").get_input()
+        name = " ".join((name or "").split())
+        if not name or profiles.find(self.tools.store, self.cfg, name):
+            return
+        self.tools.store.run("INSERT INTO profiles (id, name, home_city, created) VALUES (?, ?, '', ?)",
+                             (profiles.profile_id(name), name, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        self._edits[self._profile] = (self.name.get().strip(), self.city.get().strip())
+        self._profile = profiles.profile_id(name)
+        self._refresh_profiles()
+        self._fill_person(self._profile)
+
+    def _save_people(self):
+        self._edits[self._profile] = (self.name.get().strip(), self.city.get().strip())
+        for pid, (name, city) in self._edits.items():
+            if pid == profiles.DEFAULT:
+                self.cfg.update({"user_name": name, "home_city": city})
+            elif self.tools is not None:
+                self.tools.store.run("UPDATE profiles SET name = COALESCE(NULLIF(?, ''), name), home_city = ? "
+                                     "WHERE id = ?", (name, city, pid))
+        if self.tools is not None and self._profile != self.tools.profile:
+            self.tools.switch_profile(self._profile)
+
     def _save(self):
+        self._save_people()
         self.cfg.update({
             **self._chosen_providers(),
             "api_key": self.key.get().strip(),
             "model": self._model_ids[self.model.get()],
-            "user_name": self.name.get().strip(),
-            "home_city": self.city.get().strip(),
             "location_mode": LOCATION_CHOICES[self.location.get()],
             "ha_url": self.ha_url.get().strip(),
             "ha_token": self.ha_token.get().strip(),
@@ -332,7 +398,7 @@ class JarvisApp(ctk.CTk):
         self.confirming = False  # a confirmation is open; mic/wake word belong to it
         self._voice_turn = False  # the current request was spoken, so confirm by voice too
         self.tools = Tools(on_timer_done=self._timer_done, cfg=self.cfg, on_reminder=self._reminder_due,
-                           confirm=self._confirm)
+                           confirm=self._confirm, on_profile_switch=lambda pid: config.save(self.cfg))
         self.brain = None
         self.recorder = Recorder()
         self.transcriber = Transcriber(self.cfg["whisper_model"])
@@ -429,7 +495,7 @@ class JarvisApp(ctk.CTk):
                                               on_wake=lambda: self.ui(self._on_wake)).start()
 
     def open_settings(self, first_run=False):
-        SettingsDialog(self, self.cfg, on_save=self._settings_saved, first_run=first_run)
+        SettingsDialog(self, self.cfg, on_save=self._settings_saved, first_run=first_run, tools=self.tools)
 
     def _settings_saved(self):
         self._init_brain()
@@ -447,7 +513,7 @@ class JarvisApp(ctk.CTk):
     def _greet(self):
         hour = datetime.now().hour
         part = "morning" if hour < 12 else "afternoon" if hour < 18 else "evening"
-        name = self.cfg.get("user_name") or "sir"
+        name = self.tools.effective_cfg().get("user_name") or "sir"
         line = f"Good {part}, {name}. All systems online."
         self._append("jarvis", line)
         self._speak_async(line)
@@ -611,12 +677,14 @@ class JarvisApp(ctk.CTk):
                 self.wake.resume()
 
     def _timer_done(self, label):
-        name = self.cfg.get("user_name") or "sir"
+        name = self.tools.effective_cfg().get("user_name") or "sir"
         self._announce(f"{name}, your {label} timer is done.")
 
-    def _reminder_due(self, text, late):
-        name = self.cfg.get("user_name") or "sir"
-        self._announce(f"While I was off, you had a reminder: {text}." if late
+    def _reminder_due(self, text, late, profile=profiles.DEFAULT):
+        # Say whose reminder it is: on a shared computer it may not be the active person's
+        person = next((p for p in profiles.all_profiles(self.tools.store, self.cfg) if p["id"] == profile), None)
+        name = (person["name"] if person and person["name"] != "Main" else None) or "sir"
+        self._announce(f"While I was off, {name} had a reminder: {text}." if late
                        else f"{name}, a reminder: {text}.")
 
     def _announce(self, line):

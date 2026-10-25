@@ -25,6 +25,21 @@ CREATE TABLE IF NOT EXISTS reminders (
     status   TEXT NOT NULL DEFAULT 'pending',   -- pending / fired / cancelled
     created  TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS notes (
+    id       INTEGER PRIMARY KEY,
+    profile  TEXT NOT NULL DEFAULT 'default',
+    text     TEXT NOT NULL,
+    saved    TEXT NOT NULL
+);
+
+-- Extra people. The 'default' profile isn't stored here: it uses the main settings.
+CREATE TABLE IF NOT EXISTS profiles (
+    id        TEXT PRIMARY KEY,                 -- lowercase name, e.g. 'marcus'
+    name      TEXT NOT NULL,                    -- as typed, e.g. 'Marcus'
+    home_city TEXT NOT NULL DEFAULT '',
+    created   TEXT NOT NULL
+);
 """
 
 

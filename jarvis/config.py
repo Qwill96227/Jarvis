@@ -54,6 +54,8 @@ DEFAULTS = {
     "wake_word_threshold": 0.5,           # 0-1; raise if it triggers by mistake, lower if it misses you
     "confirm_tools": ["send_email", "clear_notes"],  # ask before these (add move_file, close_app...)
     "max_tool_steps": 12,                 # tool round-trips allowed for one request
+    "profiles_enabled": True,             # several people with their own notes/memories/reminders
+    "active_profile": "default",          # "default" = the main settings' name and city
 }
 
 

@@ -18,8 +18,8 @@ from datetime import datetime
 
 import requests
 
-from . import (calendar_tools, config, email_tools, home_assistant, location, memory, reminders, safety,
-               system_tools)
+from . import (calendar_tools, config, email_tools, home_assistant, location, memory, profiles, reminders,
+               safety, system_tools)
 from .storage import Store
 
 try:
@@ -179,19 +179,24 @@ WEATHER_CODES = {
 
 class Tools(memory.MemoryTools, reminders.ReminderTools, calendar_tools.CalendarTools,
             email_tools.EmailTools, system_tools.SystemTools, location.LocationTools,
-            home_assistant.HomeAssistantTools):
+            home_assistant.HomeAssistantTools, profiles.ProfileTools):
     def __init__(self, on_timer_done=None, store: Store = None, cfg: dict = None, on_reminder=None,
-                 confirm=None):
+                 confirm=None, on_profile_switch=None):
         # on_timer_done(label) and on_reminder(text, late) are called from background threads.
         # confirm(question, detail) -> bool asks the user before irreversible tools (see run()).
+        # on_profile_switch(profile_id) lets the app save the active profile.
         self.on_timer_done = on_timer_done or (lambda label: None)
         self.confirm = confirm
+        self.on_profile_switch = on_profile_switch
         self.timers = {}  # id -> (label, end_time)
         self._timer_id = 0
         self.cfg = cfg if cfg is not None else {}
         self.store = store or Store()
-        self.profile = "default"
-        self.locator = location.Locator(self.cfg)
+        self._import_old_notes()
+        active = self.cfg.get("active_profile", profiles.DEFAULT)
+        known = {p["id"] for p in profiles.all_profiles(self.store, self.cfg)}
+        self.profile = active if active in known else profiles.DEFAULT
+        self.locator = location.Locator(self.effective_cfg)  # uses the active person's home city
         self.reminder_scheduler = None
         if on_reminder and self.cfg.get("reminders_enabled", True):
             self.reminder_scheduler = reminders.ReminderScheduler(self.store, on_reminder).start()
@@ -199,6 +204,8 @@ class Tools(memory.MemoryTools, reminders.ReminderTools, calendar_tools.Calendar
     def schemas(self) -> list:
         """Tool definitions to send to Claude, leaving out features switched off in settings."""
         schemas = list(TOOL_SCHEMAS) + location.SCHEMAS
+        if self.cfg.get("profiles_enabled", True):
+            schemas += profiles.SCHEMAS
         if self.cfg.get("memory_enabled", True):
             schemas += memory.SCHEMAS
         if self.cfg.get("reminders_enabled", True):
@@ -341,26 +348,32 @@ class Tools(memory.MemoryTools, reminders.ReminderTools, calendar_tools.Calendar
             for label, end in self.timers.values()
         ]
 
-    def _notes(self):
-        if config.NOTES_PATH.exists():
-            try:
-                return json.loads(config.NOTES_PATH.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
-                return []
-        return []
+    def _import_old_notes(self):
+        """Notes used to live in notes.json; move any into the database (default profile) once."""
+        path = config.NOTES_PATH
+        if not path.exists():
+            return
+        try:
+            old = json.loads(path.read_text(encoding="utf-8")) or []
+        except (OSError, json.JSONDecodeError):
+            return  # leave an unreadable file alone rather than lose it
+        for n in old:
+            self.store.run("INSERT INTO notes (profile, text, saved) VALUES ('default', ?, ?)",
+                           (n.get("text", ""), n.get("saved", "")))
+        path.replace(path.with_name(path.name + ".imported"))
 
     def t_save_note(self, text: str):
-        notes = self._notes()
-        notes.append({"text": text, "saved": datetime.now().strftime("%Y-%m-%d %H:%M")})
-        config.NOTES_PATH.write_text(json.dumps(notes, indent=2), encoding="utf-8")
-        return f"Saved. You have {len(notes)} note(s)."
+        self.store.run("INSERT INTO notes (profile, text, saved) VALUES (?, ?, ?)",
+                       (self.profile, text, datetime.now().strftime("%Y-%m-%d %H:%M")))
+        count = self.store.query("SELECT COUNT(*) AS n FROM notes WHERE profile = ?", (self.profile,))[0]["n"]
+        return f"Saved. You have {count} note(s)."
 
     def t_read_notes(self):
-        notes = self._notes()
+        notes = self.store.query("SELECT text, saved FROM notes WHERE profile = ? ORDER BY id", (self.profile,))
         return notes if notes else "No notes saved."
 
     def t_clear_notes(self):
-        config.NOTES_PATH.write_text("[]", encoding="utf-8")
+        self.store.run("DELETE FROM notes WHERE profile = ?", (self.profile,))
         return "All notes deleted."
 
     def t_open_website(self, url: str):

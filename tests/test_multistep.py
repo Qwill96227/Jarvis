@@ -17,8 +17,8 @@ def text(t):
     return SimpleNamespace(type="text", text=t)
 
 
-def tool(name, id, **inp):
-    return SimpleNamespace(type="tool_use", id=id, name=name, input=inp)
+def tool(_name, _id, **inp):
+    return SimpleNamespace(type="tool_use", id=_id, name=_name, input=inp)
 
 
 def reply(*blocks, stop="end_turn"):

@@ -23,6 +23,7 @@ Click the glowing core (or press **Ctrl+Alt+J** from anywhere), talk, click agai
 | "Where am I?" / "What's the weather?" (no city) | Location awareness |
 | "Turn the kitchen lights to 40%" / "Turn off the coffee maker" / "Set the heat to 72" | Home Assistant (optional) |
 | "Hey Jarvis, …" (hands-free) / say it again to interrupt | Wake word (optional) |
+| "This is Marcus" / "Add a profile for Ana" / "Switch back to Quincy" | Profiles for people sharing the laptop |
 | Anything else | Just conversation |
 
 ## Memory
@@ -57,6 +58,17 @@ When you ask for the weather without naming a place, Drexya works out where you 
 - **Windows Location** has to be allowed: Settings → Privacy & security → Location → turn on **Location services** and **Let desktop apps access your location**. If it's off, Drexya skips straight to the IP lookup.
 - **IP lookups can be wrong**, sometimes by hundreds of miles: VPNs, mobile hotspots and some internet providers report a different city. Drexya always names the place it used ("In Seattle…"), so you'll notice; if it's wrong, allow Windows Location or pick **Always use my home city**.
 - Privacy: the IP lookup uses ipinfo.io and turning coordinates into a city name uses BigDataCloud; both see your IP address. The location is remembered for 10 minutes.
+
+## Profiles (sharing the laptop)
+
+Each person gets their own name, home city, **notes, memories and reminders**. The API key, voice, model and connected accounts are shared.
+
+- **Switch by voice:** "This is Marcus", "Switch to Marcus", or "Add a profile for Ana". Or use **Who's using Drexya** in settings (with **+ Add person**), where you can also edit each person's name and city.
+- The active person is remembered after a restart. Drexya starts a fresh conversation whenever the person changes, so nobody can ask about someone else's chat.
+- Reminders still go off whoever is active, and Drexya says whose they are ("Marcus, a reminder: gym").
+- The first person (whoever set Drexya up) uses the main **name** and **home city** settings.
+- **Voice identification isn't included.** Telling voices apart reliably needs a speaker-recognition model that would add hundreds of MB to the app, and an unreliable one would read out the wrong person's notes. Just say who you are.
+- Notes now live in `drexya.db` alongside everything else; an old `notes.json` is imported automatically (and renamed `notes.json.imported`).
 
 ## Multi-step requests and confirmations
 
@@ -152,6 +164,7 @@ jarvis/
   home_assistant.py  lights, switches, fans, thermostats via Home Assistant's REST API
   wakeword.py        always-on wake word listener + end-of-speech detection
   safety.py          which tools need confirmation, how to describe them, spoken yes/no
+  profiles.py        people sharing the laptop: list / switch / create
   providers/  base.py interfaces, google.py (OAuth, Google Calendar, Gmail); add outlook.py later
   storage.py  SQLite database (%APPDATA%\Jarvis\drexya.db)
   voice.py    mic recording, Whisper (speech-to-text), Piper (text-to-speech)

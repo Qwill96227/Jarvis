@@ -41,7 +41,7 @@ Your replies are usually SPOKEN ALOUD, so:
 - No markdown, bullet points, emojis, URLs, or code blocks. Write the way you'd talk.
 - Say numbers naturally ("seventy-two degrees", "about ten minutes").
 
-You have tools for the time, weather, timers, reminders, notes, the calendar, email and smart home (if connected), opening and closing apps, switching windows, screenshots, finding/opening/moving files, brightness, Wi-Fi, opening websites, media/volume control, and laptop status. Use them instead of guessing. If web search is available, use it for news, scores, prices, and anything current.
+You have tools for the time, weather, timers, reminders, notes, switching between the people who share this computer, the calendar, email and smart home (if connected), opening and closing apps, switching windows, screenshots, finding/opening/moving files, brightness, Wi-Fi, opening websites, media/volume control, and laptop status. Use them instead of guessing. If web search is available, use it for news, scores, prices, and anything current.
 The user's home city is {city}. For weather without a named place, call get_weather with no location: it uses where they are right now.
 Current local time: {datetime.now().strftime("%A, %Y-%m-%d %H:%M")}.
 When you finish an action, confirm it in a few words ("Done.", "Timer's running.").
@@ -86,7 +86,7 @@ class Brain:
         args = dict(
             model=model,
             max_tokens=4096,  # room for thinking; spoken replies are short anyway
-            system=system_prompt(self.cfg, self.tools.memory_summary()),
+            system=system_prompt(self.tools.effective_cfg(), self.tools.memory_summary()),
             tools=self._tool_list(),
             messages=self.history,
         )
@@ -102,6 +102,13 @@ class Brain:
         """Send one user message, run any tools Claude asks for (as many steps as the request
         needs, up to max_tool_steps), and return the full reply text.
         on_tool(name) is called before each local tool runs (for status display)."""
+        person = self.tools.profile
+        reply = self._ask(text, on_tool)
+        if self.tools.profile != person:
+            self.history = []  # a different person now: don't carry the last one's conversation over
+        return reply
+
+    def _ask(self, text: str, on_tool=None) -> str:
         self.history.append({"role": "user", "content": text})
         said = []
         done = []  # tools that succeeded this turn, so a failure can say what already happened

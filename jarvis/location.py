@@ -80,14 +80,21 @@ def ip_location():
 
 
 class Locator:
-    def __init__(self, cfg: dict):
-        self.cfg = cfg
-        self._cache = None  # (mode, time, Location)
+    def __init__(self, cfg):
+        """cfg: the settings dict, or a function returning it (so the active profile's home city is used)."""
+        self._cfg = cfg
+        self._cache = None  # (mode, home city, time, Location)
+
+    @property
+    def cfg(self) -> dict:
+        return self._cfg() if callable(self._cfg) else self._cfg
 
     def current(self) -> Location:
-        mode = self.cfg.get("location_mode", "auto")
-        if self._cache and self._cache[0] == mode and time.monotonic() - self._cache[1] < CACHE_SECONDS:
-            return self._cache[2]
+        cfg = self.cfg
+        mode, home = cfg.get("location_mode", "auto"), cfg.get("home_city", "").strip()
+        if (self._cache and self._cache[:2] == (mode, home)
+                and time.monotonic() - self._cache[2] < CACHE_SECONDS):
+            return self._cache[3]
         steps = {"auto": [windows_location, ip_location], "ip": [ip_location]}.get(mode, [])
         loc = None
         for step in steps:
@@ -98,11 +105,10 @@ class Locator:
             if loc:
                 break
         if loc is None:
-            home = self.cfg.get("home_city", "").strip()
             if not home:
                 return Location("", source="unknown")  # not cached: settings may change
             loc = Location(home, source="home city")
-        self._cache = (mode, time.monotonic(), loc)
+        self._cache = (mode, home, time.monotonic(), loc)
         return loc
 
 
