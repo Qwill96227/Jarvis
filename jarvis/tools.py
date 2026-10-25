@@ -1,7 +1,11 @@
-"""Local tools Drexya can call. Each tool = a JSON schema + a Python function.
+"""Local tools Drexya can call. Each tool = a JSON schema + a method named t_<tool_name>.
 
-To add a tool: write a function, add a schema to TOOL_SCHEMAS, and register it in
-Tools.dispatch. Claude decides when to call it based on the description.
+To add a tool: add its schema to TOOL_SCHEMAS (or to a feature module's SCHEMAS) and a
+t_<tool_name> method on Tools (or on that module's mixin). dispatch() finds it by name.
+Claude decides when to call it based on the description.
+
+Bigger features live in their own modules (memory.py, ...). Each one has a SCHEMAS list
+and a mixin class with its t_ methods, which Tools inherits.
 """
 import json
 import os
@@ -14,7 +18,8 @@ from datetime import datetime
 
 import requests
 
-from . import config
+from . import config, memory
+from .storage import Store
 
 try:
     import psutil
@@ -168,12 +173,27 @@ WEATHER_CODES = {
 }
 
 
-class Tools:
-    def __init__(self, on_timer_done=None):
+class Tools(memory.MemoryTools):
+    def __init__(self, on_timer_done=None, store: Store = None, cfg: dict = None):
         # on_timer_done(label) is called from a background thread when a timer finishes
         self.on_timer_done = on_timer_done or (lambda label: None)
         self.timers = {}  # id -> (label, end_time)
         self._timer_id = 0
+        self.cfg = cfg if cfg is not None else {}
+        self.store = store or Store()
+        self.profile = "default"
+
+    def schemas(self) -> list:
+        """Tool definitions to send to Claude, leaving out features switched off in settings."""
+        schemas = list(TOOL_SCHEMAS)
+        if self.cfg.get("memory_enabled", True):
+            schemas += memory.SCHEMAS
+        return schemas
+
+    def memory_summary(self) -> list:
+        if not self.cfg.get("memory_enabled", True):
+            return []
+        return memory.summary(self.store, self.profile)
 
     # ---------- dispatch ----------
     def dispatch(self, name: str, args: dict) -> str:

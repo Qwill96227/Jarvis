@@ -13,7 +13,12 @@ Click the glowing core (or press **Ctrl+Alt+J** from anywhere), talk, click agai
 | "Skip this song" / "Turn it up" | Media keys & volume |
 | "How's my battery?" | Laptop status |
 | "Who won the game last night?" | Claude web search |
+| "Remember I take my coffee black" / "What do you know about me?" / "Forget that" | Long-term memory |
 | Anything else | Just conversation |
+
+## Memory
+
+Drexya remembers lasting preferences and facts you tell it ("I prefer Celsius", "my sister is Ana") and uses them in later chats. Ask "what do you remember about me?" to see them, or "forget that" to remove one. Memories are stored on the laptop in `%APPDATA%\Jarvis\drexya.db`, and the most recent 40 are included with each request to Claude. Turn it off in settings with **Remember things about me between chats**.
 
 ## Privacy
 
@@ -49,13 +54,16 @@ Install Python 3.12 (64-bit) and optionally [Inno Setup 6](https://jrsoftware.or
 jarvis/
   app.py      window, reactor animation, settings, hotkey
   brain.py    Claude tool-use loop + Drexya's personality (system prompt)
-  tools.py    weather, timers, notes, apps, media, battery
+  tools.py    weather, timers, notes, apps, media, battery; inherits the feature mixins below
+  memory.py   remember / recall / forget
+  storage.py  SQLite database (%APPDATA%\Jarvis\drexya.db)
   voice.py    mic recording, Whisper (speech-to-text), Piper (text-to-speech)
   config.py   settings in %APPDATA%\Jarvis
+tests/        unit tests: .\.venv\Scripts\python -m unittest discover -s tests -t .
 ```
 
 ### Adding a skill
-In `tools.py`: add a schema to `TOOL_SCHEMAS` and a method named `t_<tool_name>`. That's it. Claude reads the description to decide when to use it.
+In `tools.py`: add a schema to `TOOL_SCHEMAS` and a method named `t_<tool_name>`. That's it. Claude reads the description to decide when to use it. Bigger features get their own module with a `SCHEMAS` list and a mixin class of `t_` methods that `Tools` inherits; `Tools.schemas()` decides which groups are sent based on settings.
 
 ### Ideas for v0.2
 - Wake word ("Hey Drexya") with openWakeWord, behind a settings toggle

@@ -92,66 +92,75 @@ class SettingsDialog(ctk.CTkToplevel):
         self.after(100, self.grab_set)
         self.cfg, self.on_save = cfg, on_save
 
+        # Scrollable so new settings fit; Save stays pinned at the bottom
+        body = ctk.CTkScrollableFrame(self, fg_color=PANEL)
+        body.pack(fill="both", expand=True)
         pad = {"padx": 24, "pady": (10, 0), "anchor": "w"}
         if first_run:
-            ctk.CTkLabel(self, text="Welcome. Let's get you set up.", text_color=CYAN,
+            ctk.CTkLabel(body, text="Welcome. Let's get you set up.", text_color=CYAN,
                          font=ctk.CTkFont(size=18, weight="bold")).pack(**pad)
 
-        ctk.CTkLabel(self, text="Claude API key", text_color=TEXT).pack(**pad)
-        self.key = ctk.CTkEntry(self, width=390, show="•", placeholder_text="sk-ant-...")
+        ctk.CTkLabel(body, text="Claude API key", text_color=TEXT).pack(**pad)
+        self.key = ctk.CTkEntry(body, width=390, show="•", placeholder_text="sk-ant-...")
         self.key.insert(0, cfg.get("api_key", ""))
         self.key.pack(padx=24, anchor="w")
-        link = ctk.CTkLabel(self, text="How to get a key (opens your browser)",
+        link = ctk.CTkLabel(body, text="How to get a key (opens your browser)",
                             text_color=MUTED, cursor="hand2")
         link.pack(padx=24, anchor="w")
         link.bind("<Button-1>", lambda e: webbrowser.open("https://platform.claude.com/docs/en/get-api-key"))
 
-        ctk.CTkLabel(self, text="Brain (Claude model)", text_color=TEXT).pack(**pad)
+        ctk.CTkLabel(body, text="Brain (Claude model)", text_color=TEXT).pack(**pad)
         self._model_ids = {label: mid for mid, (label, _) in config.MODELS.items()}
         current = config.MODELS.get(cfg.get("model"), config.MODELS["claude-haiku-5-5"])
-        self.model = ctk.CTkOptionMenu(self, values=list(self._model_ids), width=390,
+        self.model = ctk.CTkOptionMenu(body, values=list(self._model_ids), width=390,
                                        fg_color=CYAN_DIM, button_color=CYAN_DIM,
                                        button_hover_color=CYAN, command=self._show_model_note)
         self.model.set(current[0])
         self.model.pack(padx=24, anchor="w")
-        self.model_note = ctk.CTkLabel(self, text="", text_color=MUTED, wraplength=390, justify="left")
+        self.model_note = ctk.CTkLabel(body, text="", text_color=MUTED, wraplength=390, justify="left")
         self.model_note.pack(padx=24, anchor="w")
         self._show_model_note(current[0])
 
-        ctk.CTkLabel(self, text="What should Drexya call you?", text_color=TEXT).pack(**pad)
-        self.name = ctk.CTkEntry(self, width=390, placeholder_text="e.g. Marcus, or 'sir'")
+        ctk.CTkLabel(body, text="What should Drexya call you?", text_color=TEXT).pack(**pad)
+        self.name = ctk.CTkEntry(body, width=390, placeholder_text="e.g. Marcus, or 'sir'")
         self.name.insert(0, cfg.get("user_name", ""))
         self.name.pack(padx=24, anchor="w")
 
-        ctk.CTkLabel(self, text="Home city (for weather)", text_color=TEXT).pack(**pad)
-        self.city = ctk.CTkEntry(self, width=390, placeholder_text="e.g. Baton Rouge")
+        ctk.CTkLabel(body, text="Home city (for weather)", text_color=TEXT).pack(**pad)
+        self.city = ctk.CTkEntry(body, width=390, placeholder_text="e.g. Baton Rouge")
         self.city.insert(0, cfg.get("home_city", ""))
         self.city.pack(padx=24, anchor="w")
 
-        ctk.CTkLabel(self, text="Speech recognition model (restart to apply)",
+        ctk.CTkLabel(body, text="Speech recognition model (restart to apply)",
                      text_color=TEXT).pack(**pad)
-        self.whisper = ctk.CTkOptionMenu(self, values=["tiny.en", "base.en", "small.en"], width=180,
+        self.whisper = ctk.CTkOptionMenu(body, values=["tiny.en", "base.en", "small.en"], width=180,
                                          fg_color=CYAN_DIM, button_color=CYAN_DIM,
                                          button_hover_color=CYAN)
         self.whisper.set(cfg.get("whisper_model", "base.en"))
         self.whisper.pack(padx=24, anchor="w")
-        ctk.CTkLabel(self, text="tiny = fastest · base = balanced · small = most accurate",
+        ctk.CTkLabel(body, text="tiny = fastest · base = balanced · small = most accurate",
                      text_color=MUTED).pack(padx=24, anchor="w")
 
-        self.voice = ctk.CTkSwitch(self, text="Speak replies out loud", text_color=TEXT,
+        self.voice = ctk.CTkSwitch(body, text="Speak replies out loud", text_color=TEXT,
                                    progress_color=CYAN)
         if cfg.get("voice_enabled", True):
             self.voice.select()
         self.voice.pack(**pad)
 
-        self.search = ctk.CTkSwitch(self, text="Allow web search (~1¢ per search)", text_color=TEXT,
+        self.search = ctk.CTkSwitch(body, text="Allow web search (~1¢ per search)", text_color=TEXT,
                                     progress_color=CYAN)
         if cfg.get("web_search", True):
             self.search.select()
         self.search.pack(**pad)
 
+        self.memory = ctk.CTkSwitch(body, text="Remember things about me between chats", text_color=TEXT,
+                                    progress_color=CYAN)
+        if cfg.get("memory_enabled", True):
+            self.memory.select()
+        self.memory.pack(**pad)
+
         ctk.CTkButton(self, text="Save", fg_color=CYAN, text_color=BG, hover_color="#7fe6ff",
-                      command=self._save, width=390).pack(padx=24, pady=24, anchor="w")
+                      command=self._save, width=390).pack(padx=24, pady=16, anchor="w")
 
     def _show_model_note(self, label):
         mid = self._model_ids[label]
@@ -167,6 +176,7 @@ class SettingsDialog(ctk.CTkToplevel):
             "whisper_model": self.whisper.get(),
             "voice_enabled": bool(self.voice.get()),
             "web_search": bool(self.search.get()),
+            "memory_enabled": bool(self.memory.get()),
         })
         config.save(self.cfg)
         self.on_save()
@@ -188,7 +198,7 @@ class JarvisApp(ctk.CTk):
             pass
 
         self.busy = False
-        self.tools = Tools(on_timer_done=self._timer_done)
+        self.tools = Tools(on_timer_done=self._timer_done, cfg=self.cfg)
         self.brain = None
         self.recorder = Recorder()
         self.transcriber = Transcriber(self.cfg["whisper_model"])

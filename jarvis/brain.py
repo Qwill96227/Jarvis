@@ -1,15 +1,15 @@
 """The thinking part: Claude + a tool-use loop."""
 import anthropic
 
-from .tools import TOOL_SCHEMAS, Tools
+from .tools import Tools
 
 MAX_HISTORY_MESSAGES = 30
 
 
-def system_prompt(cfg: dict) -> str:
+def system_prompt(cfg: dict, memories: list = ()) -> str:
     name = cfg.get("user_name") or "sir"
     city = cfg.get("home_city") or "unknown"
-    return f"""You are Drexya, a personal AI assistant running on {name}'s Windows laptop.
+    prompt = f"""You are Drexya, a personal AI assistant running on {name}'s Windows laptop.
 
 Personality: calm, quick, a little dry British wit, unfailingly helpful. Address the user as "{name}" occasionally, not every line.
 
@@ -21,6 +21,13 @@ Your replies are usually SPOKEN ALOUD, so:
 You have tools for the time, weather, timers, notes, opening apps and websites, media/volume control, and laptop status. Use them instead of guessing. If web search is available, use it for news, scores, prices, and anything current.
 The user's home city is {city}; use it for weather when they don't name a place.
 When you finish an action, confirm it in a few words ("Done.", "Timer's running.")."""
+    if cfg.get("memory_enabled", True):
+        prompt += """
+
+Memory: when the user tells you a lasting preference or fact about themselves, or asks you to remember something, save it with remember. Use what you remember naturally; don't recite it. Notes are different: they're things the user wants kept and read back."""
+        if memories:
+            prompt += "\nWhat you remember about the user:\n" + "\n".join(f"- {m}" for m in memories)
+    return prompt
 
 
 class Brain:
@@ -34,7 +41,7 @@ class Brain:
         self.history = []
 
     def _tool_list(self):
-        tools = list(TOOL_SCHEMAS)
+        tools = self.tools.schemas()
         if self.cfg.get("web_search", True):
             tools.append({"type": "web_search_20250305", "name": "web_search", "max_uses": 3})
         return tools
@@ -53,7 +60,7 @@ class Brain:
         args = dict(
             model=model,
             max_tokens=4096,  # room for thinking; spoken replies are short anyway
-            system=system_prompt(self.cfg),
+            system=system_prompt(self.cfg, self.tools.memory_summary()),
             tools=self._tool_list(),
             messages=self.history,
         )

@@ -13,6 +13,7 @@ else:
 APP_DIR.mkdir(parents=True, exist_ok=True)
 CONFIG_PATH = APP_DIR / "config.json"
 NOTES_PATH = APP_DIR / "notes.json"
+DB_PATH = APP_DIR / "drexya.db"           # memory, reminders, profiles, audit log
 VOICES_DIR = APP_DIR / "voices"
 
 # Claude models offered in settings: id -> (menu label, note shown under the menu)
@@ -37,6 +38,7 @@ DEFAULTS = {
     "whisper_model": "base.en",           # tiny.en = faster, small.en = more accurate
     "hotkey": "ctrl+alt+j",
     "web_search": True,
+    "memory_enabled": True,               # remember/recall/forget + known facts in the prompt
 }
 
 
