@@ -1,6 +1,7 @@
 """Drexya desktop window."""
 import math
 import os
+import queue
 import sys
 import threading
 import webbrowser
@@ -8,7 +9,7 @@ from datetime import datetime
 
 import customtkinter as ctk
 
-from . import config, providers, wakeword
+from . import config, providers, safety, wakeword
 from .brain import Brain
 from .tools import Tools, keyboard
 from .voice import Recorder, Speaker, Transcriber
@@ -275,7 +276,43 @@ class SettingsDialog(ctk.CTkToplevel):
         self.destroy()
 
 
+class ConfirmDialog(ctk.CTkToplevel):
+    """Yes/No box for an irreversible action. on_answer(bool) is called once."""
+
+    def __init__(self, master, question, detail, on_answer):
+        super().__init__(master)
+        self.title("Drexya: please confirm")
+        self.geometry("440x360")
+        self.configure(fg_color=PANEL)
+        self.transient(master)
+        self.attributes("-topmost", True)
+        self.on_answer = on_answer
+        ctk.CTkLabel(self, text=question, text_color=AMBER, wraplength=400, justify="left",
+                     font=ctk.CTkFont(size=16, weight="bold")).pack(padx=20, pady=(18, 8), anchor="w")
+        box = ctk.CTkTextbox(self, fg_color=BG, text_color=TEXT, wrap="word", height=200)
+        box.insert("1.0", detail)
+        box.configure(state="disabled")
+        box.pack(fill="both", expand=True, padx=20)
+        row = ctk.CTkFrame(self, fg_color=PANEL)
+        row.pack(pady=14)
+        ctk.CTkButton(row, text="Yes", width=120, fg_color=CYAN, text_color=BG, hover_color="#7fe6ff",
+                      command=lambda: self.answer(True)).pack(side="left", padx=8)
+        ctk.CTkButton(row, text="No", width=120, fg_color=CYAN_DIM, hover_color=RED,
+                      command=lambda: self.answer(False)).pack(side="left", padx=8)
+        self.bind("<Escape>", lambda e: self.answer(False))
+        self.protocol("WM_DELETE_WINDOW", lambda: self.answer(False))
+        self.after(50, self.focus_force)
+
+    def answer(self, ok):
+        if self.on_answer:
+            self.on_answer(ok)
+            self.on_answer = None
+        self.destroy()
+
+
 class JarvisApp(ctk.CTk):
+    CONFIRM_TIMEOUT = 60  # seconds to answer a confirmation before it counts as no
+
     def __init__(self):
         super().__init__()
         ctk.set_appearance_mode("dark")
@@ -292,7 +329,10 @@ class JarvisApp(ctk.CTk):
         self.busy = False
         self.speaking = False  # True while a reply is being spoken, so it can be interrupted
         self.wake = None       # WakeListener when the wake word is on
-        self.tools = Tools(on_timer_done=self._timer_done, cfg=self.cfg, on_reminder=self._reminder_due)
+        self.confirming = False  # a confirmation is open; mic/wake word belong to it
+        self._voice_turn = False  # the current request was spoken, so confirm by voice too
+        self.tools = Tools(on_timer_done=self._timer_done, cfg=self.cfg, on_reminder=self._reminder_due,
+                           confirm=self._confirm)
         self.brain = None
         self.recorder = Recorder()
         self.transcriber = Transcriber(self.cfg["whisper_model"])
@@ -416,6 +456,8 @@ class JarvisApp(ctk.CTk):
     def toggle_listen(self, hands_free=False):
         """Click, hotkey or wake word. Stops recording if recording; otherwise starts it,
         cutting off Drexya mid-sentence if he's talking. hands_free stops on silence."""
+        if self.confirming:
+            return  # the confirmation is using the mic; answer it first
         if self.recorder.recording:
             audio = self.recorder.stop()
             if self.wake:
@@ -475,6 +517,7 @@ class JarvisApp(ctk.CTk):
         threading.Thread(target=self._ask, args=(text, speak), daemon=True).start()
 
     def _ask(self, text, speak):
+        self._voice_turn = speak
         reply = self.brain.ask(
             text, on_tool=lambda name: self.ui(self._set_state, "thinking",
                                                f"Using {name.replace('_', ' ')}…"))
@@ -500,6 +543,72 @@ class JarvisApp(ctk.CTk):
     def _speak_async(self, text):
         if self.cfg.get("voice_enabled", True):
             threading.Thread(target=self._say, args=(text,), daemon=True).start()
+
+    # ---------- confirmations ----------
+    def _confirm(self, question, detail) -> bool:
+        """Ask before an irreversible action. Runs on the worker thread and blocks until the
+        user clicks Yes/No or, for spoken requests, says yes or no. Silence, an unclear answer
+        or a minute with no answer all mean no."""
+        answers = queue.Queue()
+        heard = threading.Event()  # set when answered, so a voice listen can stop early
+        self.confirming = True
+
+        def answer(ok):
+            heard.set()
+            answers.put(ok)
+
+        self.ui(self._show_confirm, question, detail, answer)
+        if self._voice_turn and self.cfg.get("voice_enabled", True):
+            self.ui(self._set_state, "speaking", "Waiting for your yes or no…")
+            self._say(f"{question} Say yes or no.")
+            if not heard.is_set():
+                threading.Thread(target=self._listen_yes_no, args=(answer, heard), daemon=True).start()
+        else:
+            self.ui(self._set_state, "thinking", "Waiting for you to confirm…")
+        try:
+            ok = answers.get(timeout=self.CONFIRM_TIMEOUT)
+        except queue.Empty:
+            ok = False
+        self.confirming = False
+        self.ui(self._close_confirm)
+        self.ui(self._set_state, "thinking")
+        return ok
+
+    def _show_confirm(self, question, detail, answer):
+        self._confirm_dialog = ConfirmDialog(self, question, detail, answer)
+
+    def _close_confirm(self):
+        dialog = getattr(self, "_confirm_dialog", None)
+        if dialog is not None and dialog.winfo_exists():
+            dialog.on_answer = None
+            dialog.destroy()
+        self._confirm_dialog = None
+
+    def _listen_yes_no(self, answer, heard):
+        """Record one short hands-free reply and turn it into yes/no. Unclear: leave it to the dialog."""
+        ended = threading.Event()
+        try:
+            if self.wake:
+                self.wake.pause()
+            self.recorder.start(on_end=ended.set)
+            self.ui(self._set_state, "listening", "Say yes or no…")
+            while not (ended.wait(0.1) or heard.is_set()):
+                pass
+            audio = self.recorder.stop()
+            if heard.is_set():
+                return
+            reply = safety.parse_yes_no(self.transcriber.transcribe(audio))
+            if reply is not None:
+                answer(reply)
+            else:
+                self.ui(self._set_state, "thinking", "Didn't catch that. Use the buttons.")
+        except Exception as e:
+            print(f"[confirm] voice answer failed: {e}")
+        finally:
+            if self.recorder.recording:
+                self.recorder.stop()
+            if self.wake:
+                self.wake.resume()
 
     def _timer_done(self, label):
         name = self.cfg.get("user_name") or "sir"

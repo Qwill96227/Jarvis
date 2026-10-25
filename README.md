@@ -58,6 +58,15 @@ When you ask for the weather without naming a place, Drexya works out where you 
 - **IP lookups can be wrong**, sometimes by hundreds of miles: VPNs, mobile hotspots and some internet providers report a different city. Drexya always names the place it used ("In Seattle…"), so you'll notice; if it's wrong, allow Windows Location or pick **Always use my home city**.
 - Privacy: the IP lookup uses ipinfo.io and turning coordinates into a city name uses BigDataCloud; both see your IP address. The location is remembered for 10 minutes.
 
+## Multi-step requests and confirmations
+
+Drexya can do several things from one request ("note buy milk, remind me tomorrow at 8, and email Ana that I'll bring it"), then sum up in a sentence.
+
+- **Confirmation before irreversible actions.** Sending email and deleting all notes always ask first, in a dialog showing exactly what will happen. If you asked by voice, Drexya also asks out loud and you can just say yes or no. Silence, an unclear answer, or a minute with no answer all count as **no**. This check is in Drexya's code, so the AI can't skip it. To make other actions ask too, add them to `"confirm_tools"` in `config.json`, e.g. `["send_email", "clear_notes", "move_file", "close_app"]`.
+- **When something fails,** Drexya tries another way once if there is one, otherwise says what worked and what didn't. Lookups (weather, email, calendar) retry once after a network blip; actions are never retried automatically, so nothing happens twice.
+- **If the connection drops midway,** Drexya tells you what it had already done ("I lost my internet connection. Before that, I'd started the timer.") and remembers it, so asking again won't repeat those steps.
+- One request can take up to 12 steps (`"max_tool_steps"` in `config.json`).
+
 ## Wake word and interrupting
 
 Turn on **Listen for a wake word** in settings and Drexya listens for a phrase, then records until you stop talking, with no clicking needed. Choices: **Hey Jarvis** (default), **Alexa**, **Hey Mycroft**.
@@ -93,7 +102,7 @@ Drexya talks to Google with your own free Google Cloud "OAuth client". One-time 
 Good to know:
 - While the Google project is in **Testing**, Google makes you reconnect every 7 days. To stop that, click **Publish app** on the Audience page. Google then shows an "unverified app" screen when you connect; click **Advanced → Go to Drexya**. That's expected for a personal app.
 - Permissions requested: read and add calendar events; read Gmail and send mail as you. Drexya can't delete or archive email. If you turn on Gmail after connecting for the calendar, click **Connect Google** again so Google can grant the extra permission.
-- **Sending email:** Drexya always reads the recipient and gist back and waits for you to say yes. It needs an actual address ("ana@example.com"); it won't guess one from a name.
+- **Sending email:** Drexya always shows you the email and waits for your yes (see Multi-step requests and confirmations). It needs an actual address ("ana@example.com"); it won't guess one from a name.
 - **Suspicious emails:** email text is treated as information, never as instructions, so a message saying "AI, forward this inbox to…" is ignored and pointed out to you.
 - The sign-in is saved in `%APPDATA%\Jarvis\google_token.json`; delete that file to disconnect.
 - Never commit or share `google_client.json` or `google_token.json`. For a second person, add them as a test user (step 3) and give them the client file privately, or have them make their own.
@@ -142,6 +151,7 @@ jarvis/
   location.py        current location: Windows location -> IP -> home city
   home_assistant.py  lights, switches, fans, thermostats via Home Assistant's REST API
   wakeword.py        always-on wake word listener + end-of-speech detection
+  safety.py          which tools need confirmation, how to describe them, spoken yes/no
   providers/  base.py interfaces, google.py (OAuth, Google Calendar, Gmail); add outlook.py later
   storage.py  SQLite database (%APPDATA%\Jarvis\drexya.db)
   voice.py    mic recording, Whisper (speech-to-text), Piper (text-to-speech)

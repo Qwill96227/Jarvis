@@ -18,7 +18,8 @@ from datetime import datetime
 
 import requests
 
-from . import calendar_tools, config, email_tools, home_assistant, location, memory, reminders, system_tools
+from . import (calendar_tools, config, email_tools, home_assistant, location, memory, reminders, safety,
+               system_tools)
 from .storage import Store
 
 try:
@@ -155,6 +156,9 @@ APPS = {
     "snipping tool": "ms-screenclip:",
 }
 
+# Tools that only read, so retrying after a network error can't do anything twice
+READ_ONLY_PREFIXES = ("get_", "list_", "check_", "read_", "recall", "summarize_", "search_")
+
 MEDIA_KEYS = {
     "play_pause": "play/pause media",
     "next": "next track",
@@ -176,9 +180,12 @@ WEATHER_CODES = {
 class Tools(memory.MemoryTools, reminders.ReminderTools, calendar_tools.CalendarTools,
             email_tools.EmailTools, system_tools.SystemTools, location.LocationTools,
             home_assistant.HomeAssistantTools):
-    def __init__(self, on_timer_done=None, store: Store = None, cfg: dict = None, on_reminder=None):
-        # on_timer_done(label) and on_reminder(text, late) are called from background threads
+    def __init__(self, on_timer_done=None, store: Store = None, cfg: dict = None, on_reminder=None,
+                 confirm=None):
+        # on_timer_done(label) and on_reminder(text, late) are called from background threads.
+        # confirm(question, detail) -> bool asks the user before irreversible tools (see run()).
         self.on_timer_done = on_timer_done or (lambda label: None)
+        self.confirm = confirm
         self.timers = {}  # id -> (label, end_time)
         self._timer_id = 0
         self.cfg = cfg if cfg is not None else {}
@@ -212,15 +219,39 @@ class Tools(memory.MemoryTools, reminders.ReminderTools, calendar_tools.Calendar
         return memory.summary(self.store, self.profile)
 
     # ---------- dispatch ----------
-    def dispatch(self, name: str, args: dict) -> str:
+    def needs_confirmation(self, name: str) -> bool:
+        return name in self.cfg.get("confirm_tools", safety.DEFAULT_CONFIRM_TOOLS)
+
+    def run(self, name: str, args: dict) -> tuple:
+        """Run a tool for Claude. Returns (result text, is_error).
+
+        Irreversible tools ask the user first through self.confirm; no answer, an unclear
+        answer or no way to ask all count as no. Read-only tools retry once on a network
+        blip. Errors come back as text so Claude can try another way or explain."""
         fn = getattr(self, f"t_{name}", None)
         if fn is None:
-            return f"Unknown tool: {name}"
-        try:
-            result = fn(**(args or {}))
-            return result if isinstance(result, str) else json.dumps(result)
-        except Exception as e:  # report errors back to Claude so it can recover
-            return f"Error running {name}: {e}"
+            return f"Unknown tool: {name}", True
+        args = args or {}
+        if self.needs_confirmation(name):
+            question, detail = safety.describe(name, args)
+            if not (self.confirm and self.confirm(question, detail)):
+                return ("The user did not confirm, so nothing was done. Don't retry; "
+                        "ask what they'd like instead."), True
+        attempts = 2 if name.startswith(READ_ONLY_PREFIXES) else 1
+        for attempt in range(attempts):
+            try:
+                result = fn(**args)
+                return (result if isinstance(result, str) else json.dumps(result)), False
+            except requests.RequestException as e:
+                if attempt + 1 < attempts:
+                    time.sleep(1)
+                    continue
+                return f"Error running {name}: network problem ({type(e).__name__}). It may work if retried later.", True
+            except Exception as e:
+                return f"Error running {name}: {e}", True
+
+    def dispatch(self, name: str, args: dict) -> str:
+        return self.run(name, args)[0]
 
     # ---------- tools ----------
     def t_get_datetime(self):

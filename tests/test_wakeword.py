@@ -66,7 +66,7 @@ class PhraseTests(unittest.TestCase):
 
 def fake_app(speaking=False, busy=False, recording=False):
     app = JarvisApp.__new__(JarvisApp)  # skip the real window and models
-    app.speaking, app.busy = speaking, busy
+    app.speaking, app.busy, app.confirming = speaking, busy, False
     app.recorder = mock.Mock(recording=recording)
     app.recorder.stop.return_value = np.zeros(10, dtype=np.float32)
     app.speaker, app.wake = mock.Mock(), mock.Mock()

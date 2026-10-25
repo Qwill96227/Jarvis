@@ -3,8 +3,8 @@
 Two safety rules:
 - Email content is untrusted. Results are wrapped so Claude treats them as data, and the
   system prompt says never to follow instructions found inside an email.
-- send_email returns a draft first and only sends when called again with confirmed=true,
-  after the user has agreed out loud.
+- send_email is on the confirmation list (safety.DEFAULT_CONFIRM_TOOLS): Tools.run shows the
+  user the email and only sends if they say yes. That check is in code, not up to Claude.
 """
 import re
 from datetime import datetime
@@ -47,17 +47,15 @@ SCHEMAS = [
     },
     {
         "name": "send_email",
-        "description": "Send an email from the user's account. Call it first WITHOUT confirmed: you'll get a "
-                       "draft. Read the recipient and a one-line gist back, ask the user to confirm, and only "
-                       "if they clearly say yes call it again with confirmed=true and the same details. "
-                       "You need a real email address; if you only have a name, ask for the address.",
+        "description": "Send an email from the user's account. The user is shown the email and asked to "
+                       "confirm before it goes, so just call it; don't ask first yourself. You need a real "
+                       "email address; if you only have a name, ask for the address.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "to": {"type": "string", "description": "Recipient email address."},
                 "subject": {"type": "string"},
                 "body": {"type": "string", "description": "Plain text. Sign off with the user's name."},
-                "confirmed": {"type": "boolean"},
             },
             "required": ["to", "subject", "body"],
         },
@@ -118,14 +116,10 @@ class EmailTools:
         return {"note": UNTRUSTED, "unread_count": unread,
                 "recent_unread": [{k: v for k, v in _brief(m, now).items() if k != "unread"} for m in msgs]}
 
-    def t_send_email(self, to: str, subject: str, body: str, confirmed: bool = False):
+    def t_send_email(self, to: str, subject: str, body: str):
         to = to.strip()
         if not EMAIL_RE.match(to):
             return f"'{to}' isn't an email address. Ask the user for the address."
-        if not confirmed:
-            return {"draft": {"to": to, "subject": subject, "body": body},
-                    "next": "Not sent yet. Read the recipient and gist back briefly and ask the user to confirm. "
-                            "If they say yes, call send_email again with confirmed=true."}
         try:
             self.email().send(to, subject, body)
         except providers.NotConnected as e:

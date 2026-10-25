@@ -52,6 +52,8 @@ DEFAULTS = {
     "wake_word_enabled": False,           # always-on listening; off by default to save battery
     "wake_word": "hey_jarvis",            # hey_jarvis / alexa / hey_mycroft, or a path to a custom .onnx
     "wake_word_threshold": 0.5,           # 0-1; raise if it triggers by mistake, lower if it misses you
+    "confirm_tools": ["send_email", "clear_notes"],  # ask before these (add move_file, close_app...)
+    "max_tool_steps": 12,                 # tool round-trips allowed for one request
 }
 
 
