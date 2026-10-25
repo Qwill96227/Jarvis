@@ -21,6 +21,7 @@ Click the glowing core (or press **Ctrl+Alt+J** from anywhere), talk, click agai
 | "Take a screenshot" / "Find my resume" / "Open it" / "Move it to Documents" | Screenshots and files |
 | "Brightness to 40" / "Am I on Wi-Fi?" / "Connect to HomeNet" | Screen brightness (laptops) and Wi-Fi |
 | "Where am I?" / "What's the weather?" (no city) | Location awareness |
+| "Turn the kitchen lights to 40%" / "Turn off the coffee maker" / "Set the heat to 72" | Home Assistant (optional) |
 | Anything else | Just conversation |
 
 ## Memory
@@ -55,6 +56,16 @@ When you ask for the weather without naming a place, Drexya works out where you 
 - **Windows Location** has to be allowed: Settings → Privacy & security → Location → turn on **Location services** and **Let desktop apps access your location**. If it's off, Drexya skips straight to the IP lookup.
 - **IP lookups can be wrong**, sometimes by hundreds of miles: VPNs, mobile hotspots and some internet providers report a different city. Drexya always names the place it used ("In Seattle…"), so you'll notice; if it's wrong, allow Windows Location or pick **Always use my home city**.
 - Privacy: the IP lookup uses ipinfo.io and turning coordinates into a city name uses BigDataCloud; both see your IP address. The location is remembered for 10 minutes.
+
+## Smart home (Home Assistant)
+
+If you run [Home Assistant](https://www.home-assistant.io), Drexya can list devices, switch lights, switches and fans on and off, dim lights, and set thermostats.
+
+1. In Home Assistant, click your **profile** (bottom left) → **Security** tab → **Long-lived access tokens** → **Create token**. Name it "Drexya" and copy it (it's only shown once).
+2. In Drexya's settings, fill in **Home Assistant address** (e.g. `http://homeassistant.local:8123`, or `http://192.168.1.50:8123`) and paste the **access token**. Save.
+3. Ask "what devices do you see?" to check it works.
+
+Drexya uses the device names from Home Assistant ("Kitchen Light"), so name things the way you'd say them. If a name matches more than one device ("bedroom"), Drexya asks which. **Locks, garage doors, alarms and cameras are deliberately not controllable**: unlocking a door by voice needs more safeguards than Drexya has. The token is stored in `config.json` on the laptop.
 
 ## Connecting Google (calendar and Gmail)
 
@@ -117,6 +128,7 @@ jarvis/
   email_tools.py     email tools (provider-agnostic; send needs confirmation)
   system_tools.py    close apps, windows, screenshots, files, brightness, Wi-Fi
   location.py        current location: Windows location -> IP -> home city
+  home_assistant.py  lights, switches, fans, thermostats via Home Assistant's REST API
   providers/  base.py interfaces, google.py (OAuth, Google Calendar, Gmail); add outlook.py later
   storage.py  SQLite database (%APPDATA%\Jarvis\drexya.db)
   voice.py    mic recording, Whisper (speech-to-text), Piper (text-to-speech)

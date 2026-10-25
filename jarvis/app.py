@@ -199,6 +199,15 @@ class SettingsDialog(ctk.CTkToplevel):
             text="  Connected" if config.GOOGLE_TOKEN_PATH.exists() else "  Not connected")
         self.google_status.pack(side="left")
 
+        ctk.CTkLabel(body, text="Home Assistant address (optional)", text_color=TEXT).pack(**pad)
+        self.ha_url = ctk.CTkEntry(body, width=390, placeholder_text="http://homeassistant.local:8123")
+        self.ha_url.insert(0, cfg.get("ha_url", ""))
+        self.ha_url.pack(padx=24, anchor="w")
+        ctk.CTkLabel(body, text="Home Assistant access token", text_color=TEXT).pack(**pad)
+        self.ha_token = ctk.CTkEntry(body, width=390, show="•", placeholder_text="Profile → Security → Long-lived tokens")
+        self.ha_token.insert(0, cfg.get("ha_token", ""))
+        self.ha_token.pack(padx=24, anchor="w")
+
         ctk.CTkButton(self, text="Save", fg_color=CYAN, text_color=BG, hover_color="#7fe6ff",
                       command=self._save, width=390).pack(padx=24, pady=16, anchor="w")
 
@@ -236,6 +245,8 @@ class SettingsDialog(ctk.CTkToplevel):
             "user_name": self.name.get().strip(),
             "home_city": self.city.get().strip(),
             "location_mode": LOCATION_CHOICES[self.location.get()],
+            "ha_url": self.ha_url.get().strip(),
+            "ha_token": self.ha_token.get().strip(),
             "whisper_model": self.whisper.get(),
             "voice_enabled": bool(self.voice.get()),
             "web_search": bool(self.search.get()),

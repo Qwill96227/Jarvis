@@ -46,6 +46,8 @@ DEFAULTS = {
     "email_provider": "none",             # none / google (Gmail; outlook later)
     "system_control_enabled": True,       # windows, screenshots, files, brightness, Wi-Fi
     "location_mode": "auto",              # auto (Windows, then IP, then home city) / ip / home
+    "ha_url": "",                         # Home Assistant, e.g. http://homeassistant.local:8123
+    "ha_token": "",                       # Home Assistant long-lived access token
 }
 
 
