@@ -20,5 +20,5 @@ class ToolsTestCase(unittest.TestCase):
         self.store.close()
         self._tmp.cleanup()
 
-    def call(self, name, **args):
-        return self.tools.dispatch(name, args)
+    def call(self, _tool, **args):
+        return self.tools.dispatch(_tool, args)

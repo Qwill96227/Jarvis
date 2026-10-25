@@ -17,6 +17,9 @@ Click the glowing core (or press **Ctrl+Alt+J** from anywhere), talk, click agai
 | "Remind me tomorrow at 9 to call the dentist" / "What reminders do I have?" / "Cancel the trash one" | Reminders (survive restarts) |
 | "What's on my calendar tomorrow?" / "Add lunch with Sam Friday at noon" | Google Calendar (optional, see below) |
 | "Any new email?" / "Summarize my inbox" / "Email ana@example.com saying yes to dinner" | Gmail (optional; always asks before sending) |
+| "Close Spotify" / "What windows are open?" / "Switch to Chrome" | Window and app control |
+| "Take a screenshot" / "Find my resume" / "Open it" / "Move it to Documents" | Screenshots and files |
+| "Brightness to 40" / "Am I on Wi-Fi?" / "Connect to HomeNet" | Screen brightness (laptops) and Wi-Fi |
 | Anything else | Just conversation |
 
 ## Memory
@@ -26,6 +29,17 @@ Drexya remembers lasting preferences and facts you tell it ("I prefer Celsius", 
 ## Reminders
 
 Timers are quick countdowns that end if Drexya is closed. Reminders are for a date and time ("Friday at 6pm"): they're saved in `drexya.db`, survive restarts, and any that came due while Drexya was closed are announced the next time it starts ("While I was off, you had a reminder…"). Drexya needs to be running for a reminder to go off on time, so tick **Start Drexya when Windows starts** in the installer if you rely on them. To switch reminders off, set `"reminders_enabled": false` in `%APPDATA%\Jarvis\config.json`.
+
+## System control
+
+Drexya can close apps, list and switch windows, take screenshots (saved to `Pictures\Screenshots`), find, open and move files, set the screen brightness and manage Wi-Fi. Safety limits:
+
+- **Closing apps** works like clicking X, so apps with unsaved work still ask to save. Core Windows processes are off-limits.
+- **Files:** only inside your user folder. `open_file` opens documents, pictures and folders but never runs programs or scripts (`.exe`, `.bat`, `.ps1`, …), so a malicious email or web page can't use Drexya to launch something. Moving never overwrites a file, and there is no delete.
+- **Brightness** works on laptop screens; most external monitors don't allow software control.
+- **Wi-Fi** can report status, list saved networks, connect to a network the PC has joined before, and disconnect. Turning the Wi-Fi radio off needs admin rights, so it isn't included.
+
+Switch it all off with `"system_control_enabled": false` in `%APPDATA%\Jarvis\config.json`.
 
 ## Connecting Google (calendar and Gmail)
 
@@ -86,6 +100,7 @@ jarvis/
   reminders.py  set / list / cancel reminders + background scheduler
   calendar_tools.py  calendar tools (provider-agnostic)
   email_tools.py     email tools (provider-agnostic; send needs confirmation)
+  system_tools.py    close apps, windows, screenshots, files, brightness, Wi-Fi
   providers/  base.py interfaces, google.py (OAuth, Google Calendar, Gmail); add outlook.py later
   storage.py  SQLite database (%APPDATA%\Jarvis\drexya.db)
   voice.py    mic recording, Whisper (speech-to-text), Piper (text-to-speech)

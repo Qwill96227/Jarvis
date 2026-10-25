@@ -44,6 +44,7 @@ DEFAULTS = {
     "reminders_enabled": True,            # date/time reminders that survive restarts
     "calendar_provider": "none",          # none / google (outlook later)
     "email_provider": "none",             # none / google (Gmail; outlook later)
+    "system_control_enabled": True,       # windows, screenshots, files, brightness, Wi-Fi
 }
 
 
