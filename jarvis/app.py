@@ -8,7 +8,7 @@ from datetime import datetime
 
 import customtkinter as ctk
 
-from . import config
+from . import config, providers
 from .brain import Brain
 from .tools import Tools, keyboard
 from .voice import Recorder, Speaker, Transcriber
@@ -21,6 +21,8 @@ AMBER = "#ffb347"
 RED = "#ff4d5e"
 TEXT = "#d8e6f3"
 MUTED = "#6b7f96"
+
+CALENDAR_CHOICES = {"Off": "none", "Google Calendar": "google"}  # menu label -> calendar_provider
 
 STATE_COLORS = {"idle": CYAN, "listening": RED, "thinking": AMBER, "speaking": CYAN}
 STATE_TEXT = {
@@ -159,6 +161,21 @@ class SettingsDialog(ctk.CTkToplevel):
             self.memory.select()
         self.memory.pack(**pad)
 
+        ctk.CTkLabel(body, text="Calendar", text_color=TEXT).pack(**pad)
+        self.calendar = ctk.CTkOptionMenu(body, values=list(CALENDAR_CHOICES), width=180,
+                                          fg_color=CYAN_DIM, button_color=CYAN_DIM, button_hover_color=CYAN)
+        self.calendar.set(next((k for k, v in CALENDAR_CHOICES.items()
+                                if v == cfg.get("calendar_provider", "none")), "Off"))
+        self.calendar.pack(padx=24, anchor="w")
+        google_row = ctk.CTkFrame(body, fg_color=PANEL)
+        google_row.pack(padx=24, pady=(6, 0), anchor="w")
+        ctk.CTkButton(google_row, text="Connect Google", width=130, fg_color=CYAN_DIM, hover_color=CYAN,
+                      command=self._connect_google).pack(side="left")
+        self.google_status = ctk.CTkLabel(
+            google_row, text_color=MUTED,
+            text="  Connected" if config.GOOGLE_TOKEN_PATH.exists() else "  Not connected")
+        self.google_status.pack(side="left")
+
         ctk.CTkButton(self, text="Save", fg_color=CYAN, text_color=BG, hover_color="#7fe6ff",
                       command=self._save, width=390).pack(padx=24, pady=16, anchor="w")
 
@@ -167,8 +184,29 @@ class SettingsDialog(ctk.CTkToplevel):
         self.model_note.configure(text=config.MODELS[mid][1],
                                   text_color="#ffb347" if mid == "claude-fable-5-1" else MUTED)
 
+    def _chosen_providers(self) -> dict:
+        return {"calendar_provider": CALENDAR_CHOICES[self.calendar.get()]}
+
+    def _connect_google(self):
+        features = providers.google_features(self._chosen_providers())
+        if not features:
+            self.google_status.configure(text="  Choose Google above first")
+            return
+        self.google_status.configure(text="  Waiting for you in the browser…")
+
+        def run():
+            try:
+                from .providers import google
+                msg = google.connect(features)
+            except Exception as e:
+                msg = f"Couldn't connect: {e}"
+            self.after(0, lambda: self.google_status.configure(text=f"  {msg}"))
+
+        threading.Thread(target=run, daemon=True).start()
+
     def _save(self):
         self.cfg.update({
+            **self._chosen_providers(),
             "api_key": self.key.get().strip(),
             "model": self._model_ids[self.model.get()],
             "user_name": self.name.get().strip(),

@@ -12,6 +12,9 @@ Output/
 Jarvis-Windows.zip
 Drexya-Windows.zip
 
-# Local settings (never commit API keys)
+# Local settings (never commit API keys or OAuth files)
 config.json
+google_client.json
+google_token.json
+client_secret*.json
 *.log

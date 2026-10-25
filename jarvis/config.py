@@ -14,6 +14,8 @@ APP_DIR.mkdir(parents=True, exist_ok=True)
 CONFIG_PATH = APP_DIR / "config.json"
 NOTES_PATH = APP_DIR / "notes.json"
 DB_PATH = APP_DIR / "drexya.db"           # memory, reminders, profiles, audit log
+GOOGLE_CLIENT_PATH = APP_DIR / "google_client.json"  # OAuth client you download from Google Cloud
+GOOGLE_TOKEN_PATH = APP_DIR / "google_token.json"    # written after you click Connect Google
 VOICES_DIR = APP_DIR / "voices"
 
 # Claude models offered in settings: id -> (menu label, note shown under the menu)
@@ -40,6 +42,7 @@ DEFAULTS = {
     "web_search": True,
     "memory_enabled": True,               # remember/recall/forget + known facts in the prompt
     "reminders_enabled": True,            # date/time reminders that survive restarts
+    "calendar_provider": "none",          # none / google (outlook later)
 }
 
 

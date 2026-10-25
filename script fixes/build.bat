@@ -28,6 +28,7 @@ pyinstaller --noconfirm --clean --windowed ^
   --collect-all piper ^
   --collect-all onnxruntime ^
   --collect-all tokenizers ^
+  --collect-data googleapiclient ^
   --hidden-import pyttsx3.drivers ^
   --hidden-import pyttsx3.drivers.sapi5 ^
   --hidden-import comtypes.client ^
