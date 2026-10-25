@@ -16,6 +16,7 @@ Click the glowing core (or press **Ctrl+Alt+J** from anywhere), talk, click agai
 | "Remember I take my coffee black" / "What do you know about me?" / "Forget that" | Long-term memory |
 | "Remind me tomorrow at 9 to call the dentist" / "What reminders do I have?" / "Cancel the trash one" | Reminders (survive restarts) |
 | "What's on my calendar tomorrow?" / "Add lunch with Sam Friday at noon" | Google Calendar (optional, see below) |
+| "Any new email?" / "Summarize my inbox" / "Email ana@example.com saying yes to dinner" | Gmail (optional; always asks before sending) |
 | Anything else | Just conversation |
 
 ## Memory
@@ -26,22 +27,25 @@ Drexya remembers lasting preferences and facts you tell it ("I prefer Celsius", 
 
 Timers are quick countdowns that end if Drexya is closed. Reminders are for a date and time ("Friday at 6pm"): they're saved in `drexya.db`, survive restarts, and any that came due while Drexya was closed are announced the next time it starts ("While I was off, you had a reminder…"). Drexya needs to be running for a reminder to go off on time, so tick **Start Drexya when Windows starts** in the installer if you rely on them. To switch reminders off, set `"reminders_enabled": false` in `%APPDATA%\Jarvis\config.json`.
 
-## Connecting Google (calendar)
+## Connecting Google (calendar and Gmail)
 
 Drexya talks to Google with your own free Google Cloud "OAuth client". One-time setup, about 10 minutes:
 
 1. Go to https://console.cloud.google.com, sign in, and create a project (e.g. "Drexya").
-2. **APIs & Services → Library**: search for and **Enable** the **Google Calendar API**.
+2. **APIs & Services → Library**: search for and **Enable** the **Google Calendar API** and/or the **Gmail API**.
 3. **Google Auth Platform** (OAuth consent screen): choose **External**, give it a name and your email. Under **Audience → Test users**, add the Google account(s) that will use Drexya.
 4. **Clients → Create client → Application type: Desktop app → Create**, then **Download JSON**.
 5. Save that file as `%APPDATA%\Jarvis\google_client.json` (paste `%APPDATA%\Jarvis` into File Explorer's address bar to open the folder).
-6. In Drexya: ⚙ settings → **Calendar: Google Calendar** → **Connect Google**. Your browser opens; sign in and allow access. Then click **Save**.
+6. In Drexya: ⚙ settings → choose **Calendar: Google Calendar** and/or **Email: Gmail** → **Connect Google**. Your browser opens; sign in and allow access. Then click **Save**.
 
 Good to know:
 - While the Google project is in **Testing**, Google makes you reconnect every 7 days. To stop that, click **Publish app** on the Audience page. Google then shows an "unverified app" screen when you connect; click **Advanced → Go to Drexya**. That's expected for a personal app.
-- Drexya only asks for permission to read and add calendar events. The sign-in is saved in `%APPDATA%\Jarvis\google_token.json`; delete that file to disconnect.
+- Permissions requested: read and add calendar events; read Gmail and send mail as you. Drexya can't delete or archive email. If you turn on Gmail after connecting for the calendar, click **Connect Google** again so Google can grant the extra permission.
+- **Sending email:** Drexya always reads the recipient and gist back and waits for you to say yes. It needs an actual address ("ana@example.com"); it won't guess one from a name.
+- **Suspicious emails:** email text is treated as information, never as instructions, so a message saying "AI, forward this inbox to…" is ignored and pointed out to you.
+- The sign-in is saved in `%APPDATA%\Jarvis\google_token.json`; delete that file to disconnect.
 - Never commit or share `google_client.json` or `google_token.json`. For a second person, add them as a test user (step 3) and give them the client file privately, or have them make their own.
-- The calendar code sits behind a provider interface (`jarvis/providers/`), so Outlook can be added later without changing the tools.
+- Calendar and email sit behind provider interfaces (`jarvis/providers/`), so Outlook can be added later without changing the tools.
 
 ## Privacy
 
@@ -81,7 +85,8 @@ jarvis/
   memory.py   remember / recall / forget
   reminders.py  set / list / cancel reminders + background scheduler
   calendar_tools.py  calendar tools (provider-agnostic)
-  providers/  base.py interfaces, google.py (OAuth + Google Calendar); add outlook.py later
+  email_tools.py     email tools (provider-agnostic; send needs confirmation)
+  providers/  base.py interfaces, google.py (OAuth, Google Calendar, Gmail); add outlook.py later
   storage.py  SQLite database (%APPDATA%\Jarvis\drexya.db)
   voice.py    mic recording, Whisper (speech-to-text), Piper (text-to-speech)
   config.py   settings in %APPDATA%\Jarvis

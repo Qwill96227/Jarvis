@@ -18,6 +18,37 @@ class Event:
     location: str = ""
 
 
+@dataclass
+class Message:
+    id: str
+    sender: str
+    subject: str
+    date: datetime
+    snippet: str = ""
+    unread: bool = False
+    body: str = ""  # only filled by get_message
+
+
+class EmailProvider(ABC):
+    name = "email"
+
+    @abstractmethod
+    def list_messages(self, limit: int = 10, unread_only: bool = False, query: str = "") -> list:
+        """Newest inbox messages first (sender, subject, date, snippet; no body)."""
+
+    @abstractmethod
+    def get_message(self, message_id: str) -> Message:
+        """One message including its plain-text body."""
+
+    @abstractmethod
+    def unread_count(self) -> int:
+        """Unread messages in the inbox."""
+
+    @abstractmethod
+    def send(self, to: str, subject: str, body: str) -> str:
+        """Send a plain-text email from the user's account. Returns the sent message id."""
+
+
 class CalendarProvider(ABC):
     name = "calendar"
 

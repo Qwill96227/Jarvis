@@ -43,6 +43,7 @@ DEFAULTS = {
     "memory_enabled": True,               # remember/recall/forget + known facts in the prompt
     "reminders_enabled": True,            # date/time reminders that survive restarts
     "calendar_provider": "none",          # none / google (outlook later)
+    "email_provider": "none",             # none / google (Gmail; outlook later)
 }
 
 

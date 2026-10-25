@@ -23,6 +23,7 @@ TEXT = "#d8e6f3"
 MUTED = "#6b7f96"
 
 CALENDAR_CHOICES = {"Off": "none", "Google Calendar": "google"}  # menu label -> calendar_provider
+EMAIL_CHOICES = {"Off": "none", "Gmail": "google"}               # menu label -> email_provider
 
 STATE_COLORS = {"idle": CYAN, "listening": RED, "thinking": AMBER, "speaking": CYAN}
 STATE_TEXT = {
@@ -167,6 +168,16 @@ class SettingsDialog(ctk.CTkToplevel):
         self.calendar.set(next((k for k, v in CALENDAR_CHOICES.items()
                                 if v == cfg.get("calendar_provider", "none")), "Off"))
         self.calendar.pack(padx=24, anchor="w")
+
+        ctk.CTkLabel(body, text="Email", text_color=TEXT).pack(**pad)
+        self.email = ctk.CTkOptionMenu(body, values=list(EMAIL_CHOICES), width=180,
+                                       fg_color=CYAN_DIM, button_color=CYAN_DIM, button_hover_color=CYAN)
+        self.email.set(next((k for k, v in EMAIL_CHOICES.items()
+                             if v == cfg.get("email_provider", "none")), "Off"))
+        self.email.pack(padx=24, anchor="w")
+        ctk.CTkLabel(body, text="Drexya always reads an email back and asks before sending it.",
+                     text_color=MUTED).pack(padx=24, anchor="w")
+
         google_row = ctk.CTkFrame(body, fg_color=PANEL)
         google_row.pack(padx=24, pady=(6, 0), anchor="w")
         ctk.CTkButton(google_row, text="Connect Google", width=130, fg_color=CYAN_DIM, hover_color=CYAN,
@@ -185,7 +196,8 @@ class SettingsDialog(ctk.CTkToplevel):
                                   text_color="#ffb347" if mid == "claude-fable-5-1" else MUTED)
 
     def _chosen_providers(self) -> dict:
-        return {"calendar_provider": CALENDAR_CHOICES[self.calendar.get()]}
+        return {"calendar_provider": CALENDAR_CHOICES[self.calendar.get()],
+                "email_provider": EMAIL_CHOICES[self.email.get()]}
 
     def _connect_google(self):
         features = providers.google_features(self._chosen_providers())

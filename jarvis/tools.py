@@ -18,7 +18,7 @@ from datetime import datetime
 
 import requests
 
-from . import calendar_tools, config, memory, reminders
+from . import calendar_tools, config, email_tools, memory, reminders
 from .storage import Store
 
 try:
@@ -173,7 +173,8 @@ WEATHER_CODES = {
 }
 
 
-class Tools(memory.MemoryTools, reminders.ReminderTools, calendar_tools.CalendarTools):
+class Tools(memory.MemoryTools, reminders.ReminderTools, calendar_tools.CalendarTools,
+            email_tools.EmailTools):
     def __init__(self, on_timer_done=None, store: Store = None, cfg: dict = None, on_reminder=None):
         # on_timer_done(label) and on_reminder(text, late) are called from background threads
         self.on_timer_done = on_timer_done or (lambda label: None)
@@ -195,6 +196,8 @@ class Tools(memory.MemoryTools, reminders.ReminderTools, calendar_tools.Calendar
             schemas += reminders.SCHEMAS
         if self.cfg.get("calendar_provider", "none") != "none":
             schemas += calendar_tools.SCHEMAS
+        if self.cfg.get("email_provider", "none") != "none":
+            schemas += email_tools.SCHEMAS
         return schemas
 
     def memory_summary(self) -> list:
