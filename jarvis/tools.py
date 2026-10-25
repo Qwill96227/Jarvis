@@ -18,7 +18,7 @@ from datetime import datetime
 
 import requests
 
-from . import calendar_tools, config, email_tools, memory, reminders, system_tools
+from . import calendar_tools, config, email_tools, location, memory, reminders, system_tools
 from .storage import Store
 
 try:
@@ -40,12 +40,12 @@ TOOL_SCHEMAS = [
     },
     {
         "name": "get_weather",
-        "description": "Current conditions and a 3-day forecast for a city. "
-                       "If the user doesn't name a place, use their home city.",
+        "description": "Current conditions and a 3-day forecast. Leave location empty for wherever the "
+                       "user is right now (detected automatically).",
         "input_schema": {
             "type": "object",
-            "properties": {"location": {"type": "string", "description": "City name, e.g. 'Baton Rouge'"}},
-            "required": ["location"],
+            "properties": {"location": {"type": "string",
+                                        "description": "City name, e.g. 'Baton Rouge'. Omit for the current location."}},
         },
     },
     {
@@ -174,7 +174,7 @@ WEATHER_CODES = {
 
 
 class Tools(memory.MemoryTools, reminders.ReminderTools, calendar_tools.CalendarTools,
-            email_tools.EmailTools, system_tools.SystemTools):
+            email_tools.EmailTools, system_tools.SystemTools, location.LocationTools):
     def __init__(self, on_timer_done=None, store: Store = None, cfg: dict = None, on_reminder=None):
         # on_timer_done(label) and on_reminder(text, late) are called from background threads
         self.on_timer_done = on_timer_done or (lambda label: None)
@@ -183,13 +183,14 @@ class Tools(memory.MemoryTools, reminders.ReminderTools, calendar_tools.Calendar
         self.cfg = cfg if cfg is not None else {}
         self.store = store or Store()
         self.profile = "default"
+        self.locator = location.Locator(self.cfg)
         self.reminder_scheduler = None
         if on_reminder and self.cfg.get("reminders_enabled", True):
             self.reminder_scheduler = reminders.ReminderScheduler(self.store, on_reminder).start()
 
     def schemas(self) -> list:
         """Tool definitions to send to Claude, leaving out features switched off in settings."""
-        schemas = list(TOOL_SCHEMAS)
+        schemas = list(TOOL_SCHEMAS) + location.SCHEMAS
         if self.cfg.get("memory_enabled", True):
             schemas += memory.SCHEMAS
         if self.cfg.get("reminders_enabled", True):
@@ -222,7 +223,14 @@ class Tools(memory.MemoryTools, reminders.ReminderTools, calendar_tools.Calendar
     def t_get_datetime(self):
         return datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
 
-    def t_get_weather(self, location: str):
+    def t_get_weather(self, location: str = ""):
+        if not location.strip():
+            here = self.locator.current()
+            if here.lat is not None:
+                return self._weather_at(here.lat, here.lon, here.name)
+            if not here.name:
+                return "I don't know where you are. Name a city, or set a home city in settings."
+            location = here.name
         geo = requests.get(
             "https://geocoding-api.open-meteo.com/v1/search",
             params={"name": location, "count": 1, "language": "en", "format": "json"},
@@ -235,11 +243,15 @@ class Tools(memory.MemoryTools, reminders.ReminderTools, calendar_tools.Calendar
                 return self.t_get_weather(short)
             return f"Couldn't find a place called {location}."
         place = geo["results"][0]
+        return self._weather_at(place["latitude"], place["longitude"],
+                                f"{place['name']}, {place.get('admin1', '')}".strip(", "))
+
+    def _weather_at(self, lat: float, lon: float, place_name: str):
         wx = requests.get(
             "https://api.open-meteo.com/v1/forecast",
             params={
-                "latitude": place["latitude"],
-                "longitude": place["longitude"],
+                "latitude": lat,
+                "longitude": lon,
                 "current": "temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m",
                 "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max",
                 "temperature_unit": "fahrenheit",
@@ -251,7 +263,7 @@ class Tools(memory.MemoryTools, reminders.ReminderTools, calendar_tools.Calendar
         ).json()
         cur, daily = wx["current"], wx["daily"]
         return {
-            "place": f"{place['name']}, {place.get('admin1', '')}".strip(", "),
+            "place": place_name,
             "now": {
                 "temp_f": cur["temperature_2m"],
                 "feels_like_f": cur["apparent_temperature"],

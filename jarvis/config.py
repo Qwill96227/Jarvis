@@ -45,6 +45,7 @@ DEFAULTS = {
     "calendar_provider": "none",          # none / google (outlook later)
     "email_provider": "none",             # none / google (Gmail; outlook later)
     "system_control_enabled": True,       # windows, screenshots, files, brightness, Wi-Fi
+    "location_mode": "auto",              # auto (Windows, then IP, then home city) / ip / home
 }
 
 

@@ -20,6 +20,7 @@ Click the glowing core (or press **Ctrl+Alt+J** from anywhere), talk, click agai
 | "Close Spotify" / "What windows are open?" / "Switch to Chrome" | Window and app control |
 | "Take a screenshot" / "Find my resume" / "Open it" / "Move it to Documents" | Screenshots and files |
 | "Brightness to 40" / "Am I on Wi-Fi?" / "Connect to HomeNet" | Screen brightness (laptops) and Wi-Fi |
+| "Where am I?" / "What's the weather?" (no city) | Location awareness |
 | Anything else | Just conversation |
 
 ## Memory
@@ -40,6 +41,20 @@ Drexya can close apps, list and switch windows, take screenshots (saved to `Pict
 - **Wi-Fi** can report status, list saved networks, connect to a network the PC has joined before, and disconnect. Turning the Wi-Fi radio off needs admin rights, so it isn't included.
 
 Switch it all off with `"system_control_enabled": false` in `%APPDATA%\Jarvis\config.json`.
+
+## Location
+
+When you ask for the weather without naming a place, Drexya works out where you are. Choose how in settings under **Location for weather**:
+
+| Setting | How it works |
+|---|---|
+| **Detect automatically** (default) | Windows Location first (GPS/Wi-Fi, most accurate), then your IP address, then your home city |
+| **Use my IP address** | IP lookup (city-level), then home city |
+| **Always use my home city** | Nothing leaves the PC |
+
+- **Windows Location** has to be allowed: Settings → Privacy & security → Location → turn on **Location services** and **Let desktop apps access your location**. If it's off, Drexya skips straight to the IP lookup.
+- **IP lookups can be wrong**, sometimes by hundreds of miles: VPNs, mobile hotspots and some internet providers report a different city. Drexya always names the place it used ("In Seattle…"), so you'll notice; if it's wrong, allow Windows Location or pick **Always use my home city**.
+- Privacy: the IP lookup uses ipinfo.io and turning coordinates into a city name uses BigDataCloud; both see your IP address. The location is remembered for 10 minutes.
 
 ## Connecting Google (calendar and Gmail)
 
@@ -101,6 +116,7 @@ jarvis/
   calendar_tools.py  calendar tools (provider-agnostic)
   email_tools.py     email tools (provider-agnostic; send needs confirmation)
   system_tools.py    close apps, windows, screenshots, files, brightness, Wi-Fi
+  location.py        current location: Windows location -> IP -> home city
   providers/  base.py interfaces, google.py (OAuth, Google Calendar, Gmail); add outlook.py later
   storage.py  SQLite database (%APPDATA%\Jarvis\drexya.db)
   voice.py    mic recording, Whisper (speech-to-text), Piper (text-to-speech)

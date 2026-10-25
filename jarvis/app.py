@@ -24,6 +24,11 @@ MUTED = "#6b7f96"
 
 CALENDAR_CHOICES = {"Off": "none", "Google Calendar": "google"}  # menu label -> calendar_provider
 EMAIL_CHOICES = {"Off": "none", "Gmail": "google"}               # menu label -> email_provider
+LOCATION_CHOICES = {                                             # menu label -> location_mode
+    "Detect automatically (Windows, then IP address)": "auto",
+    "Use my IP address": "ip",
+    "Always use my home city (private)": "home",
+}
 
 STATE_COLORS = {"idle": CYAN, "listening": RED, "thinking": AMBER, "speaking": CYAN}
 STATE_TEXT = {
@@ -134,6 +139,13 @@ class SettingsDialog(ctk.CTkToplevel):
         self.city.insert(0, cfg.get("home_city", ""))
         self.city.pack(padx=24, anchor="w")
 
+        ctk.CTkLabel(body, text="Location for weather", text_color=TEXT).pack(**pad)
+        self.location = ctk.CTkOptionMenu(body, values=list(LOCATION_CHOICES), width=390,
+                                          fg_color=CYAN_DIM, button_color=CYAN_DIM, button_hover_color=CYAN)
+        self.location.set(next((k for k, v in LOCATION_CHOICES.items()
+                                if v == cfg.get("location_mode", "auto")), list(LOCATION_CHOICES)[0]))
+        self.location.pack(padx=24, anchor="w")
+
         ctk.CTkLabel(body, text="Speech recognition model (restart to apply)",
                      text_color=TEXT).pack(**pad)
         self.whisper = ctk.CTkOptionMenu(body, values=["tiny.en", "base.en", "small.en"], width=180,
@@ -223,6 +235,7 @@ class SettingsDialog(ctk.CTkToplevel):
             "model": self._model_ids[self.model.get()],
             "user_name": self.name.get().strip(),
             "home_city": self.city.get().strip(),
+            "location_mode": LOCATION_CHOICES[self.location.get()],
             "whisper_model": self.whisper.get(),
             "voice_enabled": bool(self.voice.get()),
             "web_search": bool(self.search.get()),
